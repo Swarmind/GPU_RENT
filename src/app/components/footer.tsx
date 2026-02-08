@@ -1,6 +1,5 @@
 import { Server, Twitter, Github, Linkedin, Mail } from "lucide-react";
-//import logo from "figma:asset/5ae972dd1a4a99358196b6e67a4827180a6a439a.png";
-import logo from "../../assets/5ae972dd1a4a99358196b6e67a4827180a6a439a.png";
+import { AntHiveLogo } from "./anthive-logo";
 
 export function Footer() {
   return (
@@ -10,11 +9,11 @@ export function Footer() {
           {/* Brand */}
           <div className="md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
-              <img src={logo} alt="SwarMind" className="w-10 h-10" />
-              <span className="text-xl font-semibold text-white">SwarMind</span>
+              <AntHiveLogo className="w-10 h-10" />
+              <span className="text-xl font-semibold text-white">AntHive</span>
             </div>
             <p className="text-sm text-slate-400 mb-4">
-              High-performance GPU rentals for AI, ML, and deep learning workloads.
+              High-performance GPU rentals for AI & ML workloads. Decentralized, secure, and cost-effective.
             </p>
             <div className="flex gap-3">
               <a href="#" className="w-9 h-9 bg-slate-800 rounded-lg flex items-center justify-center hover:bg-slate-700 transition">
@@ -71,7 +70,7 @@ export function Footer() {
 
         <div className="border-t border-slate-800 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-slate-400">
-            © 2026 SwarMind. All rights reserved.
+            © 2026 AntHive. All rights reserved.
           </p>
           <div className="flex gap-6 text-sm">
             <a href="#" className="hover:text-white transition">Status</a>

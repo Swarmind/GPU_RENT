@@ -1,53 +1,54 @@
 import { Zap, Shield, Clock } from "lucide-react";
+import { Link } from "react-router";
 
 export function Hero() {
   return (
     <section className="container mx-auto px-6 py-20">
       <div className="text-center max-w-4xl mx-auto mb-16">
         <h1 className="text-5xl md:text-6xl mb-6 text-slate-900">
-          High-Performance GPU Rentals for AI & ML
+          Decentralized GPU Marketplace for AI & ML
         </h1>
         <p className="text-xl text-slate-600 mb-8">
-          Access powerful GPU instances on-demand. Scale your deep learning workloads with enterprise-grade infrastructure.
+          Rent GPUs, share your hardware, or crowdfund LLM training. Access powerful compute resources with pre-configured templates and instant deployment.
         </p>
-        <div className="flex gap-4 justify-center">
-          <button className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg">
-            Start Computing
-          </button>
-          <button className="px-8 py-4 bg-white text-slate-900 rounded-lg border-2 border-slate-200 hover:border-slate-300 transition text-lg">
-            View Pricing
-          </button>
+        <div className="flex gap-4 justify-center flex-wrap">
+          <Link to="/instances" className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg">
+            Browse Instances
+          </Link>
+          <Link to="/campaigns" className="px-8 py-4 bg-white text-slate-900 rounded-lg border-2 border-slate-200 hover:border-slate-300 transition text-lg">
+            View Campaigns
+          </Link>
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-8 mb-20">
-        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200">
+        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition">
           <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
             <Zap className="w-6 h-6 text-blue-600" />
           </div>
           <h3 className="text-xl mb-3 text-slate-900">Instant Deployment</h3>
           <p className="text-slate-600">
-            Launch GPU instances in seconds. No setup, no waiting. Start training your models immediately.
+            Launch GPU instances in seconds with pre-configured ML/AI templates. No setup, no waiting.
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200">
+        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition">
           <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
             <Shield className="w-6 h-6 text-green-600" />
           </div>
-          <h3 className="text-xl mb-3 text-slate-900">Enterprise Security</h3>
+          <h3 className="text-xl mb-3 text-slate-900">Earn with Your Hardware</h3>
           <p className="text-slate-600">
-            Bank-grade encryption and isolated environments. Your data and models stay private and secure.
+            Connect your machines to the marketplace and earn passive income by renting out your GPUs.
           </p>
         </div>
 
-        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200">
+        <div className="bg-white rounded-xl p-8 shadow-sm border border-slate-200 hover:shadow-md transition">
           <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
             <Clock className="w-6 h-6 text-purple-600" />
           </div>
-          <h3 className="text-xl mb-3 text-slate-900">Pay Per Minute</h3>
+          <h3 className="text-xl mb-3 text-slate-900">Crowdfund LLM Training</h3>
           <p className="text-slate-600">
-            Only pay for what you use. No long-term commitments or upfront costs required.
+            Pool resources to train large language models. Fund or support research campaigns.
           </p>
         </div>
       </div>

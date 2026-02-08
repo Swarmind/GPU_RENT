@@ -1,40 +1,41 @@
 import { Cloud, BarChart3, Lock, Wrench, Globe, Users } from "lucide-react";
+import { Link } from "react-router";
 
 const features = [
   {
     icon: Cloud,
-    title: "Cloud-Native Infrastructure",
-    description: "Built on cutting-edge cloud architecture for maximum reliability and performance. Automatic scaling and load balancing included.",
+    title: "Decentralized Marketplace",
+    description: "Connect hardware providers with renters in a peer-to-peer marketplace. Competitive pricing and global availability.",
     color: "blue"
   },
   {
     icon: BarChart3,
-    title: "Real-Time Monitoring",
-    description: "Track GPU utilization, memory usage, and performance metrics in real-time with our intuitive dashboard.",
+    title: "Auto-Detected Hardware",
+    description: "CLI tool automatically detects GPU specs, CPU, RAM, and network capabilities. Providers just set pricing and availability.",
     color: "green"
   },
   {
     icon: Lock,
-    title: "Advanced Security",
-    description: "Enterprise-grade encryption, isolated environments, and compliance with SOC 2, GDPR, and HIPAA standards.",
+    title: "Verified Machines",
+    description: "Hardware verification ensures quality. Provider reputation system and reliability tracking built-in.",
     color: "red"
   },
   {
     icon: Wrench,
-    title: "Pre-Configured Environments",
-    description: "Choose from TensorFlow, PyTorch, JAX, and more. Custom Docker images supported for maximum flexibility.",
+    title: "Pre-Configured Templates",
+    description: "One-click deployment with LLaMA, Stable Diffusion, PyTorch, TensorFlow, and custom frameworks.",
     color: "purple"
   },
   {
     icon: Globe,
-    title: "Global Data Centers",
-    description: "Deploy in regions across North America, Europe, and Asia. Low latency guaranteed with our global network.",
+    title: "Community Crowdfunding",
+    description: "Pool resources for expensive training jobs. Support open-source AI research and development.",
     color: "indigo"
   },
   {
     icon: Users,
-    title: "Team Collaboration",
-    description: "Share resources, manage permissions, and collaborate seamlessly with your team on ML projects.",
+    title: "Transparent Economics",
+    description: "Pay per minute for rentals. Earn passive income as a provider. Track campaign funding in real-time.",
     color: "orange"
   }
 ];
@@ -53,9 +54,9 @@ export function Features() {
     <section id="features" className="bg-white py-20">
       <div className="container mx-auto px-6">
         <div className="text-center mb-16">
-          <h2 className="text-4xl mb-4 text-slate-900">Built for Performance</h2>
+          <h2 className="text-4xl mb-4 text-slate-900">Why Choose AntHive</h2>
           <p className="text-xl text-slate-600 max-w-2xl mx-auto">
-            Everything you need to train, deploy, and scale your AI models in production.
+            The complete platform for distributed GPU computing and AI training
           </p>
         </div>
 
@@ -77,17 +78,17 @@ export function Features() {
         </div>
 
         <div className="mt-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-12 text-center text-white">
-          <h3 className="text-3xl mb-4">Ready to accelerate your AI development?</h3>
+          <h3 className="text-3xl mb-4">Ready to start your AI journey?</h3>
           <p className="text-xl mb-8 text-blue-100">
-            Join thousands of developers and researchers using our platform
+            Join the decentralized GPU marketplace today
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <button className="px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-lg">
-              Get Started Free
-            </button>
-            <button className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg hover:bg-white/10 transition text-lg">
-              Schedule Demo
-            </button>
+            <Link to="/instances" className="px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-lg">
+              Rent GPUs
+            </Link>
+            <Link to="/machines" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg hover:bg-white/10 transition text-lg">
+              List Your Hardware
+            </Link>
           </div>
         </div>
       </div>
