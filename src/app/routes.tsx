@@ -4,18 +4,35 @@ import { TemplatesPage } from "./pages/templates-page";
 import { InstancesPage } from "./pages/instances-page";
 import { MachinesPage } from "./pages/machines-page";
 import { CampaignsPage } from "./pages/campaigns-page";
+import { LoginPage } from "./pages/login-page";
+import { RegisterPage } from "./pages/register-page";
 import { Layout } from "./components/layout";
+import { AuthLayout } from "./components/auth-layout";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: Layout,
+    Component: AuthLayout,
     children: [
-      { index: true, Component: HomePage },
-      { path: "templates", Component: TemplatesPage },
-      { path: "instances", Component: InstancesPage },
-      { path: "machines", Component: MachinesPage },
-      { path: "campaigns", Component: CampaignsPage },
+      {
+        path: "/",
+        Component: Layout,
+        children: [
+          { index: true, Component: HomePage },
+          { path: "templates", Component: TemplatesPage },
+          { path: "instances", Component: InstancesPage },
+          { path: "machines", Component: MachinesPage },
+          { path: "campaigns", Component: CampaignsPage },
+        ],
+      },
+      {
+        path: "/login",
+        Component: LoginPage,
+      },
+      {
+        path: "/register",
+        Component: RegisterPage,
+      },
     ],
   },
 ]);
