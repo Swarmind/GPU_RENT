@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Server, Edit, Trash2, Power, PowerOff } from "lucide-react";
-import { AddMachineModal } from "./add-machine-modal";
+import { EnrollmentTokenModal } from "./enrollment-token-modal";
+import { useAuth } from "../contexts/auth-context";
 
 // Mock machine data for the provider
 const mockMachines = [
@@ -78,10 +79,149 @@ const mockMachines = [
   }
 ];
 
+const API_BASE_URL = 'https://launchpad.swarmind.ai';
+
+// Helper function to map API response to UI format
+function mapApiMachineToUI(apiMachine: any) {
+  return {
+    id: apiMachine.id || String(Math.random()),
+    machineName: apiMachine.name || "Unnamed Machine",
+    machineId: apiMachine.id || "N/A",
+    location: apiMachine.request_location || "Unknown",
+    gpuName: "GPU Info N/A", // API doesn't provide GPU details yet
+    gpuCount: 1,
+    tflops: 0,
+    vram: 0,
+    vramUnit: "GB",
+    cpu: "CPU Info N/A",
+    cpuCores: 0,
+    cpuSpeed: 0,
+    ram: 0,
+    ramMax: 0,
+    storage: 0,
+    pricePerHour: 0,
+    maxDuration: apiMachine.rent_duration_minutes ? `${apiMachine.rent_duration_minutes} mins` : "N/A",
+    reliability: 0,
+    verified: false,
+    status: apiMachine.status || "inactive",
+    rentals: 0,
+    revenue: 0,
+    // Additional API fields
+    assignedIp: apiMachine.assigned_ip,
+    updatedAt: apiMachine.updated_at,
+  };
+}
+
 export function Machines() {
+  const { user } = useAuth();
   const [machines, setMachines] = useState(mockMachines);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"all" | "active" | "rented" | "inactive">("all");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch machines from API when user is authenticated
+  useEffect(() => {
+    if (user) {
+      fetchUserMachines();
+    } else {
+      // Use mock data when not authenticated
+      setMachines(mockMachines);
+    }
+  }, [user]);
+
+  const fetchUserMachines = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log('=== FETCHING USER MACHINES ===');
+      console.log('User authenticated:', !!user);
+      console.log('API URL:', `${API_BASE_URL}/machines/user`);
+
+      const response = await fetch(`${API_BASE_URL}/machines/user`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        let errorMessage = `Failed to fetch machines (${response.status})`;
+        const contentType = response.headers.get('content-type');
+        
+        try {
+          if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            console.log('Error response (JSON):', errorData);
+            errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
+          } else {
+            const textError = await response.text();
+            console.log('Error response (text):', textError);
+            if (textError) errorMessage = textError;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const responseText = await response.text();
+      console.log('Response body (raw):', responseText);
+      
+      if (!responseText) {
+        console.warn('Empty response, using mock data');
+        setMachines(mockMachines);
+        return;
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Response body (parsed):', data);
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
+
+      if (data.machines && Array.isArray(data.machines)) {
+        console.log('✓ Fetched machines:', data.machines.length);
+        
+        if (data.machines.length === 0) {
+          console.log('No machines found, showing empty state');
+          setMachines([]);
+        } else {
+          const mappedMachines = data.machines.map(mapApiMachineToUI);
+          console.log('✓ Mapped machines:', mappedMachines);
+          setMachines(mappedMachines);
+        }
+      } else {
+        console.warn('Invalid response format, expected { machines: [] }');
+        setMachines(mockMachines);
+      }
+
+      console.log('==============================');
+
+    } catch (err: any) {
+      console.error('=== FETCH MACHINES ERROR ===');
+      console.error('Error type:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Full error:', err);
+      console.error('============================');
+      
+      setError(err.message || 'Failed to fetch machines');
+      // Fall back to mock data on error
+      setMachines(mockMachines);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAddMachine = (machineData: any) => {
     const newMachine = {
@@ -178,167 +318,194 @@ export function Machines() {
               </button>
             ))}
           </div>
-        </div>
 
-        {/* Machines List */}
-        <div className="space-y-4">
-          {filteredMachines.length === 0 ? (
-            <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
-              <Server className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-900 mb-2">No machines found</h3>
-              <p className="text-slate-600 mb-4">
-                {selectedFilter === "all" 
-                  ? "Add your first machine to start earning on the marketplace"
-                  : `No ${selectedFilter} machines at the moment`
-                }
+          {/* Error Display */}
+          {error && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-sm text-yellow-800">
+                <strong>Note:</strong> {error}. Showing sample data.
               </p>
-              {selectedFilter === "all" && (
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-                >
-                  Add Machine
-                </button>
-              )}
             </div>
-          ) : (
-            filteredMachines.map(machine => (
-              <div
-                key={machine.id}
-                className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-white border-2 border-slate-200 rounded flex items-center justify-center text-blue-600 text-xl flex-shrink-0">
-                      S
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-lg font-medium text-slate-900">{machine.machineName}</h3>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          machine.status === "active" 
-                            ? "bg-green-50 text-green-700"
-                            : machine.status === "rented"
-                            ? "bg-blue-50 text-blue-700"
-                            : "bg-slate-100 text-slate-600"
-                        }`}>
-                          {machine.status}
-                        </span>
-                        {machine.verified && (
-                          <span className="px-2 py-1 rounded text-xs bg-purple-50 text-purple-700">
-                            verified
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm text-slate-500">
-                        {machine.machineId} • {machine.location}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => toggleMachineStatus(machine.id)}
-                      className={`p-2 rounded hover:bg-slate-100 transition ${
-                        machine.status === "rented" ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                      disabled={machine.status === "rented"}
-                      title={machine.status === "active" ? "Deactivate" : "Activate"}
-                    >
-                      {machine.status === "active" ? (
-                        <Power className="w-5 h-5 text-green-600" />
-                      ) : (
-                        <PowerOff className="w-5 h-5 text-slate-400" />
-                      )}
-                    </button>
-                    <button
-                      className="p-2 text-slate-600 hover:bg-slate-100 rounded transition"
-                      title="Edit"
-                    >
-                      <Edit className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => deleteMachine(machine.id)}
-                      className={`p-2 text-red-600 hover:bg-red-50 rounded transition ${
-                        machine.status === "rented" ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                      disabled={machine.status === "rented"}
-                      title="Delete"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                </div>
+          )}
 
-                {/* Specs Grid */}
-                <div className="grid grid-cols-5 gap-6 mb-4">
-                  <div>
-                    <div className="text-xs text-slate-500 mb-1">GPU</div>
-                    <div className="text-sm font-medium text-slate-900">{machine.gpuName}</div>
-                    <div className="text-xs text-slate-500">{machine.tflops} TFLOPS</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 mb-1">VRAM</div>
-                    <div className="text-sm font-medium text-slate-900">
-                      {machine.vram} {machine.vramUnit}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 mb-1">CPU</div>
-                    <div className="text-sm font-medium text-slate-900">{machine.cpuCores} cores</div>
-                    <div className="text-xs text-slate-500">{machine.cpuSpeed} GHz</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 mb-1">RAM</div>
-                    <div className="text-sm font-medium text-slate-900">
-                      {machine.ram} / {machine.ramMax} MBps
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-500 mb-1">Storage</div>
-                    <div className="text-sm font-medium text-slate-900">{machine.storage} GB</div>
-                  </div>
-                </div>
-
-                {/* Pricing and Stats */}
-                <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-                  <div className="flex items-center gap-6">
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Price</div>
-                      <div className="text-lg font-medium text-slate-900">
-                        ${machine.pricePerHour.toFixed(3)}/hr
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Max Duration</div>
-                      <div className="text-sm font-medium text-slate-900">{machine.maxDuration}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-slate-500 mb-1">Reliability</div>
-                      <div className="text-sm font-medium text-slate-900">{machine.reliability}%</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <div className="text-xs text-slate-500 mb-1">Total Rentals</div>
-                      <div className="text-sm font-medium text-slate-900">{machine.rentals}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-slate-500 mb-1">Revenue</div>
-                      <div className="text-lg font-medium text-green-600">${machine.revenue.toFixed(2)}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
+          {/* User Auth Status */}
+          {!user && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Demo Mode:</strong> You're viewing sample data. Please log in to see your actual machines.
+              </p>
+            </div>
           )}
         </div>
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
+            <div className="animate-spin w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-slate-600">Loading your machines...</p>
+          </div>
+        )}
+
+        {/* Machines List */}
+        {!isLoading && (
+          <div className="space-y-4">
+            {filteredMachines.length === 0 ? (
+              <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
+                <Server className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-slate-900 mb-2">No machines found</h3>
+                <p className="text-slate-600 mb-4">
+                  {selectedFilter === "all" 
+                    ? "Add your first machine to start earning on the marketplace"
+                    : `No ${selectedFilter} machines at the moment`
+                  }
+                </p>
+                {selectedFilter === "all" && (
+                  <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  >
+                    Add Machine
+                  </button>
+                )}
+              </div>
+            ) : (
+              filteredMachines.map(machine => (
+                <div
+                  key={machine.id}
+                  className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-white border-2 border-slate-200 rounded flex items-center justify-center text-blue-600 text-xl flex-shrink-0">
+                        S
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-medium text-slate-900">{machine.machineName}</h3>
+                          <span className={`px-2 py-1 rounded text-xs ${
+                            machine.status === "active" 
+                              ? "bg-green-50 text-green-700"
+                              : machine.status === "rented"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {machine.status}
+                          </span>
+                          {machine.verified && (
+                            <span className="px-2 py-1 rounded text-xs bg-purple-50 text-purple-700">
+                              verified
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-slate-500">
+                          {machine.machineId} • {machine.location}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggleMachineStatus(machine.id)}
+                        className={`p-2 rounded hover:bg-slate-100 transition ${
+                          machine.status === "rented" ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
+                        disabled={machine.status === "rented"}
+                        title={machine.status === "active" ? "Deactivate" : "Activate"}
+                      >
+                        {machine.status === "active" ? (
+                          <Power className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <PowerOff className="w-5 h-5 text-slate-400" />
+                        )}
+                      </button>
+                      <button
+                        className="p-2 text-slate-600 hover:bg-slate-100 rounded transition"
+                        title="Edit"
+                      >
+                        <Edit className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => deleteMachine(machine.id)}
+                        className={`p-2 text-red-600 hover:bg-red-50 rounded transition ${
+                          machine.status === "rented" ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
+                        disabled={machine.status === "rented"}
+                        title="Delete"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Specs Grid */}
+                  <div className="grid grid-cols-5 gap-6 mb-4">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">GPU</div>
+                      <div className="text-sm font-medium text-slate-900">{machine.gpuName}</div>
+                      <div className="text-xs text-slate-500">{machine.tflops} TFLOPS</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">VRAM</div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {machine.vram} {machine.vramUnit}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">CPU</div>
+                      <div className="text-sm font-medium text-slate-900">{machine.cpuCores} cores</div>
+                      <div className="text-xs text-slate-500">{machine.cpuSpeed} GHz</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">RAM</div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {machine.ram} / {machine.ramMax} MBps
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Storage</div>
+                      <div className="text-sm font-medium text-slate-900">{machine.storage} GB</div>
+                    </div>
+                  </div>
+
+                  {/* Pricing and Stats */}
+                  <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                    <div className="flex items-center gap-6">
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1">Price</div>
+                        <div className="text-lg font-medium text-slate-900">
+                          ${machine.pricePerHour.toFixed(3)}/hr
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1">Max Duration</div>
+                        <div className="text-sm font-medium text-slate-900">{machine.maxDuration}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1">Reliability</div>
+                        <div className="text-sm font-medium text-slate-900">{machine.reliability}%</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6">
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500 mb-1">Total Rentals</div>
+                        <div className="text-sm font-medium text-slate-900">{machine.rentals}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-slate-500 mb-1">Revenue</div>
+                        <div className="text-lg font-medium text-green-600">${machine.revenue.toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add Machine Modal */}
-      <AddMachineModal
+      <EnrollmentTokenModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSubmit={handleAddMachine}
       />
     </div>
   );

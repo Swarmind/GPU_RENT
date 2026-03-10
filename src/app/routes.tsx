@@ -7,32 +7,25 @@ import { CampaignsPage } from "./pages/campaigns-page";
 import { LoginPage } from "./pages/login-page";
 import { RegisterPage } from "./pages/register-page";
 import { Layout } from "./components/layout";
-import { AuthLayout } from "./components/auth-layout";
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: AuthLayout,
+    Component: Layout,
     children: [
-      {
-        path: "/",
-        Component: Layout,
-        children: [
-          { index: true, Component: HomePage },
-          { path: "templates", Component: TemplatesPage },
-          { path: "instances", Component: InstancesPage },
-          { path: "machines", Component: MachinesPage },
-          { path: "campaigns", Component: CampaignsPage },
-        ],
-      },
-      {
-        path: "/login",
-        Component: LoginPage,
-      },
-      {
-        path: "/register",
-        Component: RegisterPage,
-      },
+      { index: true, Component: HomePage },
+      { path: "templates", Component: TemplatesPage },
+      { path: "instances", Component: InstancesPage },
+      { path: "machines", Component: MachinesPage },
+      { path: "campaigns", Component: CampaignsPage },
     ],
+  },
+  {
+    path: "/login",
+    Component: LoginPage,
+  },
+  {
+    path: "/register",
+    Component: RegisterPage,
   },
 ]);

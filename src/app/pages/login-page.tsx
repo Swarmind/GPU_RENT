@@ -15,8 +15,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
+    usernameOrEmail: '',
     password: '',
   });
 
@@ -25,7 +24,7 @@ export function LoginPage() {
     setError(null);
 
     // Validation
-    if (!formData.email || !formData.password || !formData.username) {
+    if (!formData.usernameOrEmail || !formData.password) {
       setError('All fields are required');
       return;
     }
@@ -33,7 +32,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(formData.email, formData.password, formData.username);
+      await login(formData.usernameOrEmail, formData.password);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
@@ -73,27 +72,13 @@ export function LoginPage() {
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="usernameOrEmail">Username or Email</Label>
               <Input
-                id="username"
-                name="username"
+                id="usernameOrEmail"
+                name="usernameOrEmail"
                 type="text"
-                placeholder="Enter your username"
-                value={formData.username}
-                onChange={handleChange}
-                disabled={isLoading}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                placeholder="user@example.com"
-                value={formData.email}
+                placeholder="Enter your username or email"
+                value={formData.usernameOrEmail}
                 onChange={handleChange}
                 disabled={isLoading}
                 required
