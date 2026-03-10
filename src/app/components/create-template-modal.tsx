@@ -1,12 +1,18 @@
-import { X, Plus, ChevronDown, Lock, LockOpen, HelpCircle } from "lucide-react";
-import { useState } from "react";
+import { X, Plus, ChevronDown, Lock, LockOpen, HelpCircle, Check, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/auth-context";
 
 interface CreateTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onTemplateCreated?: () => void;
+  templateId?: number; // If provided, modal is in edit mode
 }
 
-export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProps) {
+const API_BASE_URL = 'https://launchpad.swarmind.ai';
+
+export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templateId }: CreateTemplateModalProps) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"config" | "readme">("config");
   const [templateName, setTemplateName] = useState("");
   const [description, setDescription] = useState("");
@@ -14,6 +20,7 @@ export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProp
   const [dockerOptions, setDockerOptions] = useState("");
   const [portType, setPortType] = useState<"TCP" | "UDP">("TCP");
   const [port, setPort] = useState("");
+  const [ports, setPorts] = useState<string[]>([]);
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([
     { key: "", value: "" }
   ]);
@@ -30,6 +37,103 @@ export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProp
   const [isPrivate, setIsPrivate] = useState(true);
   const [vramRequired, setVramRequired] = useState("");
   const [maxPricePerHour, setMaxPricePerHour] = useState("");
+  
+  // API states
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingTemplate, setIsFetchingTemplate] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [createdTemplateId, setCreatedTemplateId] = useState<number | null>(null);
+  const [readme, setReadme] = useState("");
+
+  // Fetch template data when in edit mode
+  useEffect(() => {
+    if (!isOpen || !templateId) return;
+
+    const fetchTemplate = async () => {
+      setIsFetchingTemplate(true);
+      setError(null);
+
+      try {
+        console.log('=== FETCH TEMPLATE REQUEST ===');
+        console.log('Template ID:', templateId);
+        console.log('URL:', `${API_BASE_URL}/templates/${templateId}`);
+
+        const response = await fetch(`${API_BASE_URL}/templates/${templateId}`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        console.log('Response status:', response.status);
+        console.log('Response ok:', response.ok);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch template (${response.status})`);
+        }
+
+        const template = await response.json();
+        console.log('Template data:', template);
+
+        // Populate form fields
+        setTemplateName(template.template_name || "");
+        setDescription(template.template_description || "");
+        setImagePath(template.image_path || "");
+        setDockerOptions(template.docker_options || "");
+        setDockerServer(template.docker_server_name || "");
+        setDockerUsername(template.docker_username || "");
+        setPorts(template.ports || []);
+        setOnStartScript(template.on_start_script || "");
+        setExtraFilters((template.extra_filters || []).join(' '));
+        setIsPrivate(template.is_private !== undefined ? template.is_private : true);
+        setReadme(template.readme || "");
+        
+        // Convert environment variables from array to key-value pairs
+        if (template.environment_variables && template.environment_variables.length > 0) {
+          const parsedEnvVars = template.environment_variables.map((env: string) => {
+            const [key, ...valueParts] = env.split('=');
+            return { key, value: valueParts.join('=') };
+          });
+          setEnvVars(parsedEnvVars);
+        }
+
+        // Convert disk space MB to GB/TB
+        if (template.disk_space_mb) {
+          if (template.disk_space_mb >= 1024) {
+            setDiskSize(String(template.disk_space_mb / 1024));
+            setDiskUnit("TB");
+          } else {
+            setDiskSize(String(template.disk_space_mb));
+            setDiskUnit("GB");
+          }
+        }
+
+        // Convert price from cents to dollars
+        if (template.max_price_per_hour_cents) {
+          setMaxPricePerHour(String(template.max_price_per_hour_cents / 100));
+        }
+
+        if (template.vram_required_gb) {
+          setVramRequired(String(template.vram_required_gb));
+        }
+
+        console.log('✓ Template loaded successfully');
+        console.log('==============================');
+
+      } catch (err: any) {
+        console.error('=== FETCH TEMPLATE ERROR ===');
+        console.error('Error:', err);
+        console.error('============================');
+        setError(`Failed to load template: ${err.message}`);
+      } finally {
+        setIsFetchingTemplate(false);
+      }
+    };
+
+    fetchTemplate();
+  }, [isOpen, templateId]);
 
   if (!isOpen) return null;
 
@@ -43,12 +147,211 @@ export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProp
     setEnvVars(newEnvVars);
   };
 
+  const handleAddPort = () => {
+    if (port) {
+      setPorts([...ports, `${port}/${portType}`]);
+      setPort("");
+    }
+  };
+
+  const handleRemovePort = (index: number) => {
+    const newPorts = [...ports];
+    newPorts.splice(index, 1);
+    setPorts(newPorts);
+  };
+
+  const handleSubmit = async () => {
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Convert disk size to MB
+      let diskSpaceMb = parseInt(diskSize);
+      if (diskUnit === "TB") {
+        diskSpaceMb = diskSpaceMb * 1024;
+      }
+
+      // Convert price to cents
+      const maxPricePerHourCents = maxPricePerHour ? 
+        Math.round(parseFloat(maxPricePerHour) * 100) : 0;
+
+      // Filter out empty environment variables
+      const filteredEnvVars = envVars.filter(env => env.key && env.value);
+
+      // Parse extra filters into array
+      const extraFiltersArray = extraFilters
+        .split(/\s+/)
+        .filter(filter => filter.length > 0);
+
+      const requestPayload = {
+        name: templateName,
+        image_path: imagePath,
+        docker_options: dockerOptions,
+        docker_registry: dockerServer || undefined,
+        docker_username: dockerUsername || undefined,
+        docker_password: dockerToken || undefined,
+        environment_variables: filteredEnvVars.length > 0 ? 
+          filteredEnvVars.map(env => `${env.key}=${env.value}`) : [],
+        ports: ports,
+        extra_filters: extraFiltersArray,
+        disk_space_mb: diskSpaceMb,
+        is_private: isPrivate,
+        max_price_per_hour_cents: maxPricePerHourCents,
+      };
+
+      const isEditMode = !!templateId;
+      const method = isEditMode ? 'PUT' : 'POST';
+      const url = isEditMode ? `${API_BASE_URL}/templates/${templateId}` : `${API_BASE_URL}/templates`;
+
+      console.log(`=== ${isEditMode ? 'UPDATE' : 'CREATE'} TEMPLATE REQUEST ===`);
+      console.log('URL:', url);
+      console.log('Method:', method);
+      console.log('Payload:', requestPayload);
+      console.log('User authenticated:', !!user);
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestPayload),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        let errorMessage = `Failed to ${isEditMode ? 'update' : 'create'} template (${response.status})`;
+        const contentType = response.headers.get('content-type');
+        
+        try {
+          if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            console.log('Error response (JSON):', errorData);
+            errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
+          } else {
+            const textError = await response.text();
+            console.log('Error response (text):', textError);
+            if (textError) errorMessage = textError;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Handle UPDATE response (204 No Content)
+      if (isEditMode && response.status === 204) {
+        console.log('✓ Template updated successfully');
+        console.log('==============================');
+        setSuccess(`Template updated successfully!`);
+        
+        setTimeout(() => {
+          onClose();
+          setSuccess(null);
+          if (onTemplateCreated) {
+            onTemplateCreated();
+          }
+        }, 2000);
+        return;
+      }
+
+      // Handle CREATE response (with body)
+      const responseText = await response.text();
+      console.log('Response body (raw):', responseText);
+
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Response body (parsed):', data);
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
+
+      if (data.id !== undefined) {
+        console.log('✓ Template created successfully with ID:', data.id);
+        console.log('==============================');
+        setCreatedTemplateId(data.id);
+        setSuccess(`Template created successfully! ID: ${data.id}`);
+        
+        // Reset form after 2 seconds and close
+        setTimeout(() => {
+          onClose();
+          // Reset all form fields
+          setTemplateName("");
+          setDescription("");
+          setImagePath("");
+          setDockerOptions("");
+          setPort("");
+          setPorts([]);
+          setEnvVars([{ key: "", value: "" }]);
+          setOnStartScript("");
+          setExtraFilters("");
+          setDockerServer("");
+          setDockerUsername("");
+          setDockerToken("");
+          setDiskSize("8");
+          setDiskUnit("GB");
+          setIsPrivate(true);
+          setVramRequired("");
+          setMaxPricePerHour("");
+          setSuccess(null);
+          setCreatedTemplateId(null);
+          // Call the onTemplateCreated callback if provided
+          if (onTemplateCreated) {
+            onTemplateCreated();
+          }
+        }, 2000);
+      } else {
+        console.warn('No ID in response:', data);
+        throw new Error('No template ID in response');
+      }
+
+    } catch (err: any) {
+      console.error(`=== ${templateId ? 'UPDATE' : 'CREATE'} TEMPLATE ERROR ===`);
+      console.error('Error type:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Full error:', err);
+      console.error('============================');
+      
+      let displayError = err.message || `Failed to ${templateId ? 'update' : 'create'} template`;
+      
+      if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
+        displayError = 'Network error: Cannot connect to launchpad.swarmind.ai. Please check CORS configuration.';
+      } else if (err.message?.includes('JSON')) {
+        displayError = 'Server returned invalid response. Please contact support.';
+      }
+      
+      setError(displayError);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
-          <h2 className="text-2xl text-slate-900">Create New Template</h2>
+          <h2 className="text-2xl text-slate-900">
+            {isFetchingTemplate ? (
+              <div className="flex items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin" />
+                Loading template...
+              </div>
+            ) : (
+              templateId ? 'Edit Template' : 'Create New Template'
+            )}
+          </h2>
           <button
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition"
@@ -83,6 +386,20 @@ export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProp
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
+          {/* API Feedback */}
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+          {success && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+              <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-green-700">{success}</p>
+            </div>
+          )}
+
           {activeTab === "config" ? (
             <div className="space-y-8">
               {/* Identification */}
@@ -387,9 +704,30 @@ export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProp
                             UDP
                           </button>
                         </div>
-                        <button className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition">
+                        <button
+                          onClick={handleAddPort}
+                          className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+                        >
                           <Plus className="w-5 h-5" />
                         </button>
+                      </div>
+                    )}
+                    {ports.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="text-sm text-slate-700">Added Ports:</h4>
+                        <ul className="list-disc pl-5">
+                          {ports.map((port, index) => (
+                            <li key={index} className="flex items-center">
+                              {port}
+                              <button
+                                onClick={() => handleRemovePort(index)}
+                                className="ml-2 px-2 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
                   </div>
@@ -461,15 +799,58 @@ export function CreateTemplateModal({ isOpen, onClose }: CreateTemplateModalProp
           <button
             onClick={onClose}
             className="px-6 py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition"
+            disabled={isLoading}
           >
             Cancel
           </button>
-          <button className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Create
-          </button>
-          <button className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Create & Use
-          </button>
+          {!templateId && (
+            <>
+              <button
+                onClick={handleSubmit}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </div>
+                ) : (
+                  'Create'
+                )}
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Creating...
+                  </div>
+                ) : (
+                  'Create & Use'
+                )}
+              </button>
+            </>
+          )}
+          {templateId && (
+            <button
+              onClick={handleSubmit}
+              className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || isFetchingTemplate}
+            >
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Updating...
+                </div>
+              ) : (
+                'Update Template'
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
