@@ -5,6 +5,7 @@ import { Button } from "./ui/button";
 import { Label } from "./ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { toast } from "sonner";
+import { API_BASE_URL } from "../config/api";
 
 interface RentConfigurationModalProps {
   isOpen: boolean;
@@ -80,7 +81,7 @@ export function RentConfigurationModal({
     const fetchTemplates = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch("https://launchpad.swarmind.ai/templates", {
+        const response = await fetch(`${API_BASE_URL}/templates`, {
           credentials: "include",
         });
 
@@ -225,7 +226,7 @@ export function RentConfigurationModal({
       };
 
       console.log("📤 Creating deployment with:", requestBody);
-      console.log("📤 URL:", "https://launchpad.swarmind.ai/deployments");
+      console.log("📤 URL:", `${API_BASE_URL}/deployments`);
 
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -241,7 +242,7 @@ export function RentConfigurationModal({
 
       console.log("📤 Request headers:", headers);
 
-      const response = await fetch("https://launchpad.swarmind.ai/deployments", {
+      const response = await fetch(`${API_BASE_URL}/deployments`, {
         method: "POST",
         headers,
         credentials: "include",

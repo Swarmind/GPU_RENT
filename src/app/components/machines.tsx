@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { Plus, Server, Edit, Trash2, Power, PowerOff } from "lucide-react";
 import { EnrollmentTokenModal } from "./enrollment-token-modal";
 import { useAuth } from "../contexts/auth-context";
+import { API_BASE_URL } from "../config/api";
 
 // Mock data removed - using real API calls only
-
-const API_BASE_URL = 'https://launchpad.swarmind.ai';
 
 // Helper function to map API response to UI format
 function mapApiMachineToUI(apiMachine: any) {

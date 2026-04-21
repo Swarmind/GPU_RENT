@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/auth-context";
 import { useTemplate } from "../contexts/template-context";
 import { useNavigate } from "react-router";
+import { API_BASE_URL } from "../config/api";
 
 interface CreateTemplateModalProps {
   isOpen: boolean;
@@ -11,8 +12,6 @@ interface CreateTemplateModalProps {
   templateId?: number; // If provided, modal is in edit mode
   templateData?: any; // If provided, pre-fill form with this data (for forking)
 }
-
-const API_BASE_URL = 'https://launchpad.swarmind.ai';
 
 export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templateId, templateData }: CreateTemplateModalProps) {
   const { user } = useAuth();
@@ -443,7 +442,7 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
       let displayError = err.message || `Failed to ${templateId ? 'update' : 'create'} template`;
       
       if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
-        displayError = 'Network error: Cannot connect to launchpad.swarmind.ai. Please check CORS configuration.';
+        displayError = `Network error: Cannot connect to API (${API_BASE_URL}). Check proxy/CORS configuration.`;
       } else if (err.message?.includes('JSON')) {
         displayError = 'Server returned invalid response. Please contact support.';
       }
@@ -584,7 +583,7 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
       let displayError = err.message || 'Failed to create template';
 
       if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
-        displayError = 'Network error: Cannot connect to launchpad.swarmind.ai. Please check CORS configuration.';
+        displayError = `Network error: Cannot connect to API (${API_BASE_URL}). Check proxy/CORS configuration.`;
       } else if (err.message?.includes('JSON')) {
         displayError = 'Server returned invalid response. Please contact support.';
       }

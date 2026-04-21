@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "./ui/alert-dialog";
 import { toast } from "sonner";
+import { API_BASE_URL } from "../config/api";
 
 type DeploymentStatus = "running" | "stopped" | "stopping" | "starting" | "paused" | "pausing" | "resuming" | "terminated";
 
@@ -189,9 +190,9 @@ export function Deployments() {
           headers['X-User-ID'] = (user as any).id.toString();
         }
 
-        console.log('Fetching deployments from:', 'https://launchpad.swarmind.ai/deployments');
+        console.log('Fetching deployments from:', `${API_BASE_URL}/deployments`);
 
-        const response = await fetch('https://launchpad.swarmind.ai/deployments', {
+        const response = await fetch(`${API_BASE_URL}/deployments`, {
           credentials: 'include',
           headers,
         });
@@ -269,7 +270,7 @@ export function Deployments() {
 
       for (const deployment of deployments) {
         try {
-          const response = await fetch(`https://launchpad.swarmind.ai/deployments/${deployment.id}/access`, {
+          const response = await fetch(`${API_BASE_URL}/deployments/${deployment.id}/access`, {
             credentials: 'include',
           });
 
@@ -304,7 +305,7 @@ export function Deployments() {
     try {
       console.log(`Performing ${action} on deployment:`, deployment.id);
 
-      const response = await fetch(`https://launchpad.swarmind.ai/deployments/${deployment.id}/${action}`, {
+      const response = await fetch(`${API_BASE_URL}/deployments/${deployment.id}/${action}`, {
         method: 'POST',
         credentials: 'include',
       });
@@ -388,7 +389,7 @@ export function Deployments() {
     setIsUploadingSshKeys(true);
 
     try {
-      const response = await fetch(`https://launchpad.swarmind.ai/deployments/${selectedDeployment.id}/ssh-keys`, {
+      const response = await fetch(`${API_BASE_URL}/deployments/${selectedDeployment.id}/ssh-keys`, {
         method: 'PUT',
         credentials: 'include',
         headers: {

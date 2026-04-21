@@ -19,8 +19,7 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Button } from "./ui/button";
-
-const API_BASE_URL = 'https://launchpad.swarmind.ai';
+import { API_BASE_URL } from "../config/api";
 
 // Helper functions for price conversion
 // USDC has 6 decimals
@@ -347,7 +346,7 @@ export function Instances() {
     const fetchTemplates = async () => {
       setIsLoadingTemplates(true);
       try {
-        const response = await fetch("https://launchpad.swarmind.ai/templates", {
+        const response = await fetch(`${API_BASE_URL}/templates`, {
           credentials: "include",
         });
 

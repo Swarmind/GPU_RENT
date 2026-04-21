@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { AUTH_API_BASE_URL, API_BASE_URL as CORE_API_BASE_URL } from "../config/api";
 
 interface User {
   id?: string;
@@ -21,8 +22,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Check if we should use mock auth or real API
 const USE_MOCK_AUTH = false; // Changed to always use real API
-const API_BASE_URL = 'https://auth.swarmind.ai';
-const WALLET_API_BASE_URL = 'https://launchpad.swarmind.ai';
+const API_BASE_URL = AUTH_API_BASE_URL;
+const WALLET_API_BASE_URL = CORE_API_BASE_URL;
 
 console.log('=== AUTH CONFIG ===');
 console.log('USE_MOCK_AUTH:', USE_MOCK_AUTH);
@@ -56,6 +57,36 @@ function saveSession(user: User | null) {
   } else {
     localStorage.removeItem(MOCK_SESSION_KEY);
   }
+}
+
+function normalizeUser(data: any, fallback?: Partial<User>): User {
+  return {
+    id: data?.id ?? data?.user_id ?? fallback?.id,
+    username: data?.username ?? fallback?.username ?? "",
+    email: data?.email ?? fallback?.email ?? "",
+  };
+}
+
+async function extractErrorMessage(response: Response, fallback: string): Promise<string> {
+  const raw = await response.text();
+  if (!raw) return fallback;
+
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    try {
+      const data = JSON.parse(raw);
+      return data.message || data.error || data.detail || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  if (contentType.includes('text/html')) {
+    return `${fallback} (HTTP ${response.status})`;
+  }
+
+  return raw;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -110,12 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('User ID field (user_id):', data.user_id);
           console.log('All fields:', Object.keys(data));
 
-          // Don't load wallet_address from backend - it should only come from MetaMask
-          const { wallet_address, ...userWithoutWallet } = data;
-          setUser(userWithoutWallet);
+          const normalizedUser = normalizeUser(data);
+          setUser(normalizedUser);
 
           // Also save to localStorage as backup (without wallet_address)
-          saveSession(userWithoutWallet);
+          saveSession(normalizedUser);
         } else {
           console.log('/me returned non-OK status:', response.status);
           
@@ -167,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         users.push(newUser);
         saveMockUsers(users);
 
-        const userData = { username, email };
+        const userData = normalizeUser(responseData, { username, email });
         setUser(userData);
         saveSession(userData);
       } else {
@@ -198,16 +228,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Response ok:', response.ok);
 
         if (!response.ok) {
-          let errorMessage = 'Registration failed';
-          try {
-            const errorData = await response.json();
-            console.log('Error response:', errorData);
-            errorMessage = errorData.message || errorData.error || errorMessage;
-          } catch (e) {
-            const textError = await response.text();
-            console.log('Error response (text):', textError);
-            if (textError) errorMessage = textError;
-          }
+          const errorMessage = await extractErrorMessage(response, 'Registration failed');
+          console.log('Error response message:', errorMessage);
           throw new Error(errorMessage);
         }
 
@@ -287,31 +309,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('Response ok:', response.ok);
 
           if (!response.ok) {
-            let errorMessage = 'Login failed';
-            try {
-              const errorData = await response.json();
-              console.log('Error response:', errorData);
-              errorMessage = errorData.message || errorData.error || errorMessage;
-              
-              // If user is already logged in, treat it as success
-              if (errorMessage.includes('already logged in')) {
-                console.log('User already logged in, fetching user data...');
-                await checkAuth();
-                return;
-              }
-            } catch (e) {
-              const textError = await response.text();
-              console.log('Error response (text):', textError);
-              if (textError) {
-                errorMessage = textError;
-                // Check text response too
-                if (errorMessage.includes('already logged in')) {
-                  console.log('User already logged in, fetching user data...');
-                  await checkAuth();
-                  return;
-                }
-              }
+            const errorMessage = await extractErrorMessage(response, 'Login failed');
+            console.log('Error response message:', errorMessage);
+
+            // If user is already logged in, treat it as success
+            if (errorMessage.toLowerCase().includes('already logged in')) {
+              console.log('User already logged in, fetching user data...');
+              await checkAuth();
+              return;
             }
+
             throw new Error(errorMessage);
           }
 
@@ -327,10 +334,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               
               // If the response contains user data, use it directly
               if (responseData && (responseData.username || responseData.email)) {
-                const userData = {
-                  username: responseData.username || usernameOrEmail,
+                const userData = normalizeUser(responseData, {
+                  username: responseData.username || (isEmail ? usernameOrEmail.split('@')[0] : usernameOrEmail),
                   email: responseData.email || (isEmail ? usernameOrEmail : ''),
-                };
+                });
                 console.log('Setting user from login response:', userData);
                 setUser(userData);
                 saveSession(userData);
@@ -353,22 +360,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             await checkAuth();
             
             // If checkAuth didn't set a user (due to cookie issues), create one from credentials
-            if (!user) {
+            const refreshedSession = getCurrentSession();
+            if (!refreshedSession) {
               console.log('checkAuth did not set user, using login credentials as fallback');
-              const fallbackUserData = {
+              const fallbackUserData = normalizeUser(null, {
                 username: isEmail ? usernameOrEmail.split('@')[0] : usernameOrEmail,
                 email: isEmail ? usernameOrEmail : '',
-              };
+              });
               setUser(fallbackUserData);
               saveSession(fallbackUserData);
             }
           } catch (checkAuthError) {
             console.log('checkAuth failed, using login credentials as fallback:', checkAuthError);
             // If /me fails completely, create user data from what we have
-            const fallbackUserData = {
+            const fallbackUserData = normalizeUser(null, {
               username: isEmail ? usernameOrEmail.split('@')[0] : usernameOrEmail,
               email: isEmail ? usernameOrEmail : '',
-            };
+            });
             setUser(fallbackUserData);
             saveSession(fallbackUserData);
           }
@@ -377,7 +385,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // Check if it's a CORS or network error
           if (fetchError.message?.includes('NetworkError') || fetchError.message?.includes('Failed to fetch')) {
-            throw new Error('Cannot connect to auth.swarmind.ai - CORS may not be configured correctly. Make sure the backend allows requests from ' + window.location.origin);
+            throw new Error(`Cannot connect to auth API (${API_BASE_URL}). Check proxy/CORS for origin ${window.location.origin}`);
           }
           
           throw fetchError;
@@ -427,6 +435,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchWalletAddress = async (): Promise<string | null> => {
     try {
+      if (!user) {
+        console.log('Skipping wallet address fetch: user not authenticated');
+        return null;
+      }
+
       console.log('Fetching wallet address from:', `${WALLET_API_BASE_URL}/address`);
 
       const response = await fetch(`${WALLET_API_BASE_URL}/address`, {

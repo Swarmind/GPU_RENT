@@ -1,13 +1,12 @@
 import { X, Copy, Check, Terminal } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/auth-context";
+import { API_BASE_URL } from "../config/api";
 
 interface EnrollmentTokenModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
-
-const API_BASE_URL = 'https://launchpad.swarmind.ai';
 
 export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalProps) {
   const { user } = useAuth();
@@ -201,7 +200,7 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
       
       // Check for common error types
       if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
-        displayError = 'Network error: Cannot connect to launchpad.swarmind.ai. Please check CORS configuration.';
+        displayError = `Network error: Cannot connect to API (${API_BASE_URL}). Check proxy/CORS configuration.`;
       } else if (err.message?.includes('JSON')) {
         displayError = 'Server returned invalid response. Please contact support.';
       }
