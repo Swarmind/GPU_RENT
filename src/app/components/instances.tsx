@@ -1,220 +1,423 @@
-import { useState } from "react";
-import { Filter, RefreshCw, Terminal, ChevronDown } from "lucide-react";
+import { Search, Server, Cpu, HardDrive, DollarSign, MapPin, Play, Pause, Trash2, ChevronLeft, ChevronRight, Loader2, AlertCircle, X, ChevronDown, Filter, Terminal, RefreshCw } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../contexts/auth-context";
+import { useTemplate } from "../contexts/template-context";
+import { RentConfigurationModal } from "./rent-configuration-modal";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+} from "./ui/pagination";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { Button } from "./ui/button";
 
-// Mock instance data
-const instances = [
-  {
-    id: "m:45198",
-    machineId: "best:2097334",
-    location: "Spain, ES",
-    gpuName: "1x RTX 5090",
-    gpuCount: 1,
-    tflops: 100.1,
-    vram: 32,
-    vramUnit: "GB",
-    cpu: "ROME/X32/GM.2T",
-    cpuCores: 32,
-    cpuSpeed: 2.0,
-    ram: 49485,
-    ramMax: 201762,
-    storage: 92,
-    storageType: "ports",
-    diskName: "WD_BLACK SN850...",
-    diskSize: "1193 GB",
-    bandwidth: 198.9,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 3253,
-    uploadSpeed: 376,
-    uploadUnit: "Gb/s",
-    reliability: 99.28,
-    maxDuration: "5 mos, 2d",
-    pricePerHour: 0.378,
-    verified: true
-  },
-  {
-    id: "m:46844",
-    machineId: "best:2382573",
-    location: "Michigan, US",
-    gpuName: "1x RTX PRO 6...",
-    gpuCount: 1,
-    tflops: 93.6,
-    vram: 96,
-    vramUnit: "GB",
-    cpu: "K10-PG DZ4 Serries",
-    cpuCores: 64,
-    cpuSpeed: 3.4,
-    ram: 92251,
-    ramMax: 92251,
-    storage: 134,
-    storageType: "ports",
-    diskName: "SAMSUNG MZQL...",
-    diskSize: "2819 MB/s",
-    bandwidth: 279.4,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 2757,
-    uploadSpeed: 99,
-    uploadUnit: "Gb/s",
-    reliability: 99.73,
-    maxDuration: "10 days",
-    pricePerHour: 0.738,
-    verified: true
-  },
-  {
-    id: "m:69572",
-    machineId: "best:2482573",
-    location: "Michigan, US",
-    gpuName: "2x RTX PRO 6...",
-    gpuCount: 2,
-    tflops: 187.1,
-    vram: 96,
-    vramUnit: "GB",
-    cpu: "K10-PG DZ4 Serries",
-    cpuCores: 64,
-    cpuSpeed: 3.4,
-    ram: 91377,
-    ramMax: 92051,
-    storage: 248,
-    storageType: "ports",
-    diskName: "SAMSUNG MZQL...",
-    diskSize: "4880 MB/s",
-    bandwidth: 558.4,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 5764,
-    uploadSpeed: 99,
-    uploadUnit: "Gb/s",
-    reliability: 99.43,
-    maxDuration: "10 days",
-    pricePerHour: 1.472,
-    verified: true
-  },
-  {
-    id: "m:78574",
-    machineId: "best:243591",
-    location: "Sweden, SE",
-    gpuName: "1x RTX PRO 6...",
-    gpuCount: 1,
-    tflops: 119.0,
-    vram: 96,
-    vramUnit: "GB",
-    cpu: "GDSGT48 FPG8A",
-    cpuCores: 32,
-    cpuSpeed: 3.4,
-    ram: 94347,
-    ramMax: 94445,
-    storage: 14,
-    storageType: "ports",
-    diskName: "Micron_7400_MT...",
-    diskSize: "16828 MB/s",
-    bandwidth: 283.0,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 2845,
-    uploadSpeed: 99,
-    uploadUnit: "Gb/s",
-    reliability: 99.29,
-    maxDuration: "1 mon, 1d",
-    pricePerHour: 0.821,
-    verified: true
-  },
-  {
-    id: "m:37483",
-    machineId: "best:645293",
-    location: "Poland, PL",
-    gpuName: "2x RTX PRO 6...",
-    gpuCount: 2,
-    tflops: 237.9,
-    vram: 96,
-    vramUnit: "GB",
-    cpu: "TURN2DZ4G-2L",
-    cpuCores: 64,
-    cpuSpeed: 3.4,
-    ram: 94419,
-    ramMax: 94319,
-    storage: 2490,
-    storageType: "ports",
-    diskName: "KINGSTON SEDC...",
-    diskSize: "5255 MB/s",
-    bandwidth: 562.5,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 3634,
-    uploadSpeed: 97,
-    uploadUnit: "Gb/s",
-    reliability: 97.69,
-    maxDuration: "5 mon",
-    pricePerHour: 1.421,
-    verified: true
-  },
-  {
-    id: "m:23593",
-    machineId: "best:1350343",
-    location: "Spain, ES",
-    gpuName: "2x RTX 5090",
-    gpuCount: 2,
-    tflops: 215.2,
-    vram: 32,
-    vramUnit: "GB",
-    cpu: "S8D/S5/GM/E",
-    cpuCores: 16,
-    cpuSpeed: 3.4,
-    ram: 49486,
-    ramMax: 49486,
-    storage: 691,
-    storageType: "ports",
-    diskName: "nvme",
-    diskSize: "2265 MB/s",
-    bandwidth: 347.1,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 451,
-    uploadSpeed: 99,
-    uploadUnit: "Gb/s",
-    reliability: 99.87,
-    maxDuration: "5 days",
-    pricePerHour: 0.805,
-    verified: true
-  },
-  {
-    id: "m:51959",
-    machineId: "best:2745571",
-    location: "California, US",
-    gpuName: "2x RTX 5080",
-    gpuCount: 2,
-    tflops: 106.3,
-    vram: 16,
-    vramUnit: "GB",
-    cpu: "AMZ EC2",
-    cpuCores: 8,
-    cpuSpeed: 2.7,
-    ram: 4591,
-    ramMax: 4591,
-    storage: 198,
-    storageType: "ports",
-    diskName: "nvme",
-    diskSize: "1504 MB/s",
-    bandwidth: 167.5,
-    bandwidthUnit: "GiB/s",
-    downloadSpeed: 711,
-    uploadSpeed: 99,
-    uploadUnit: "Gb/s",
-    reliability: 99.64,
-    maxDuration: "1 day",
-    pricePerHour: 0.236,
-    verified: true
-  }
-];
+const API_BASE_URL = 'https://launchpad.swarmind.ai';
+
+// Helper functions for price conversion
+// USDC has 6 decimals
+
+// Convert USD/hour to USDC wei/hour (for API filters)
+function usdPerHourToWeiPerHour(usdPerHour: number): number {
+  return Math.round(usdPerHour * 1_000_000);
+}
+
+// Convert USDC wei/second to USD/hour (for displaying prices from API)
+function weiPerSecondToUsdPerHour(weiPerSecond: number): number {
+  return (weiPerSecond * 3600) / 1_000_000;
+}
 
 export function Instances() {
-  const [hostReliability, setHostReliability] = useState(90);
-  const [maxDuration, setMaxDuration] = useState(7);
-  const [showSecureCloud, setShowSecureCloud] = useState(false);
-  const [unverifiedMachines, setUnverifiedMachines] = useState(false);
-  const [incompatibleMachines, setIncompatibleMachines] = useState(false);
-  const [unavailableOffers, setUnavailableOffers] = useState(false);
-  const [staticIP, setStaticIP] = useState(false);
-  const [gpuFilter, setGpuFilter] = useState("ANY");
-  const [demandFilter, setDemandFilter] = useState("On-Demand");
-  const [gpuTypeFilter, setGpuTypeFilter] = useState("Any GPU");
-  const [locationFilter, setLocationFilter] = useState("Planet Earth");
-  const [sortFilter, setSortFilter] = useState("Auto Sort");
+  const { user } = useAuth();
+  const { selectedTemplate, setSelectedTemplate } = useTemplate();
+  const [instances, setInstances] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10);
 
+  // Template selection
+  const [isTemplateSelectorOpen, setIsTemplateSelectorOpen] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+
+  // Rent modal
+  const [isRentModalOpen, setIsRentModalOpen] = useState(false);
+  const [selectedInstance, setSelectedInstance] = useState<any>(null);
+
+  // UI filters (what user is editing in form - USD per hour)
+  const [uiSearch, setUiSearch] = useState("");
+  const [uiLocation, setUiLocation] = useState("");
+  const [uiMinPrice, setUiMinPrice] = useState("");
+  const [uiMaxPrice, setUiMaxPrice] = useState("");
+  const [uiSortBy, setUiSortBy] = useState("updated_at");
+  const [uiSortOrder, setUiSortOrder] = useState<"asc" | "desc">("desc");
+  const [uiMinVram, setUiMinVram] = useState("");
+  const [uiMaxVram, setUiMaxVram] = useState("");
+  const [uiMinGpuCount, setUiMinGpuCount] = useState("");
+  const [uiMaxGpuCount, setUiMaxGpuCount] = useState("");
+  const [uiGpuModel, setUiGpuModel] = useState("");
+  const [uiComputeApi, setUiComputeApi] = useState("");
+  const [uiMinComputeCapability, setUiMinComputeCapability] = useState("");
+  const [uiMaxDuration, setUiMaxDuration] = useState("");
+
+  // Location autocomplete
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const locationInputRef = useRef<HTMLDivElement>(null);
+
+  // Applied filters (used for API requests)
+  const [search, setSearch] = useState("");
+  const [location, setLocation] = useState("");
+  const [minPrice, setMinPrice] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const [sortBy, setSortBy] = useState("updated_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [minVram, setMinVram] = useState("");
+  const [maxVram, setMaxVram] = useState("");
+  const [minGpuCount, setMinGpuCount] = useState("");
+  const [maxGpuCount, setMaxGpuCount] = useState("");
+  const [gpuModel, setGpuModel] = useState("");
+  const [computeApi, setComputeApi] = useState("");
+  const [minComputeCapability, setMinComputeCapability] = useState("");
+  const [maxDuration, setMaxDuration] = useState("");
+
+  // Apply filters function
+  const handleSearch = () => {
+    setSearch(uiSearch);
+    setLocation(uiLocation);
+    setMinPrice(uiMinPrice);
+    setMaxPrice(uiMaxPrice);
+    setSortBy(uiSortBy);
+    setSortOrder(uiSortOrder);
+    setMinVram(uiMinVram);
+    setMaxVram(uiMaxVram);
+    setMinGpuCount(uiMinGpuCount);
+    setMaxGpuCount(uiMaxGpuCount);
+    setGpuModel(uiGpuModel);
+    setComputeApi(uiComputeApi);
+    setMinComputeCapability(uiMinComputeCapability);
+    setMaxDuration(uiMaxDuration);
+    setCurrentPage(1); // Reset to first page on new search
+  };
+
+  // Reset filters function
+  const handleResetFilters = () => {
+    setUiSearch("");
+    setUiLocation("");
+    setUiMinPrice("");
+    setUiMaxPrice("");
+    setUiSortBy("updated_at");
+    setUiSortOrder("desc");
+    setUiMinVram("");
+    setUiMaxVram("");
+    setUiMinGpuCount("");
+    setUiMaxGpuCount("");
+    setUiGpuModel("");
+    setUiComputeApi("");
+    setUiMinComputeCapability("");
+    setUiMaxDuration("");
+  };
+
+  // Fetch location suggestions
+  const fetchLocationSuggestions = async (query: string) => {
+    if (!query || query.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/locations/suggest?q=${encodeURIComponent(query)}&limit=10`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const locations = (data.items || []).map((item: any) => item.location);
+        setLocationSuggestions(locations);
+      }
+    } catch (err) {
+      console.error('Failed to fetch location suggestions:', err);
+      setLocationSuggestions([]);
+    }
+  };
+
+  const handleLocationSelect = (location: string) => {
+    setUiLocation(location);
+    setShowSuggestions(false);
+    setLocationSuggestions([]);
+  };
+
+  const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setUiLocation(value);
+    setShowSuggestions(true);
+    fetchLocationSuggestions(value);
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (locationInputRef.current && !locationInputRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, location, minPrice, maxPrice, sortBy, sortOrder, minVram, maxVram, minGpuCount, maxGpuCount, gpuModel, computeApi, minComputeCapability, maxDuration]);
+
+  // Fetch instances from real API
+  useEffect(() => {
+    const fetchInstances = async () => {
+      setIsLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: currentPage.toString(),
+          limit: limit.toString(),
+        });
+
+        // Add optional filters
+        if (search) params.append('search', search);
+        if (location) params.append('location', location);
+
+        // Convert USD to USDC Wei for price filters
+        if (minPrice) {
+          const minPriceWei = usdPerHourToWeiPerHour(parseFloat(minPrice));
+          params.append('min_price_per_hour', minPriceWei.toString());
+        }
+        if (maxPrice) {
+          const maxPriceWei = usdPerHourToWeiPerHour(parseFloat(maxPrice));
+          params.append('max_price_per_hour', maxPriceWei.toString());
+        }
+
+        if (sortBy) params.append('sort_by', sortBy);
+        if (sortOrder) params.append('sort_order', sortOrder);
+
+        // VRAM filters (in MB)
+        if (minVram) params.append('min_vram_mb', (parseFloat(minVram) * 1024).toString());
+        if (maxVram) params.append('max_vram_mb', (parseFloat(maxVram) * 1024).toString());
+
+        if (minGpuCount) params.append('min_gpu_count', minGpuCount);
+        if (maxGpuCount) params.append('max_gpu_count', maxGpuCount);
+        if (gpuModel) params.append('gpu_model', gpuModel);
+        if (computeApi) params.append('compute_api', computeApi);
+        if (minComputeCapability) params.append('min_compute_capability', minComputeCapability);
+
+        // Max duration in minutes
+        if (maxDuration) params.append('max_duration_minutes', (parseFloat(maxDuration) * 24 * 60).toString());
+
+        console.log('Fetching marketplace from:', `${API_BASE_URL}/marketplace?${params}`);
+
+        const response = await fetch(`${API_BASE_URL}/marketplace?${params}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch marketplace:', response.status);
+          setInstances([]);
+          setTotalPages(1);
+          return;
+        }
+
+        const data = await response.json();
+        console.log('Marketplace response:', data);
+
+        // Map API response to UI format
+        const machinesArray = data.items || data.machines || (Array.isArray(data) ? data : []);
+
+        if (Array.isArray(machinesArray) && machinesArray.length > 0) {
+          const mappedInstances = machinesArray.map((machine: any) => ({
+            id: machine.id,
+            machineId: machine.id,
+            machineName: machine.name || "Unnamed Machine",
+            location: machine.detected_geo || machine.request_location || "Unknown",
+            gpuName: machine.hardware?.gpus?.[0]?.name || "Unknown GPU",
+            gpuCount: machine.hardware?.gpus?.length || 0,
+            vram: machine.hardware?.gpus?.[0]?.vram_mb ? Math.round(machine.hardware.gpus[0].vram_mb / 1024) : 0,
+            vramUnit: "GB",
+            cpu: machine.hardware?.cpu?.model_name || "Unknown CPU",
+            cpuCores: machine.hardware?.cpu?.cores || 0,
+            cpuSpeed: 0,
+            ram: machine.ram_usable_bytes ? Math.round(machine.ram_usable_bytes / (1024 ** 3)) : 0,
+            ramMax: machine.ram_total_bytes ? Math.round(machine.ram_total_bytes / (1024 ** 3)) : 0,
+            storage: machine.hardware?.disks?.[0]?.size_bytes ? Math.round(machine.hardware.disks[0].size_bytes / (1024 ** 3)) : 0,
+            storageType: "GB",
+            diskName: machine.hardware?.disks?.[0]?.model || "Unknown",
+            diskSize: "",
+            bandwidth: machine.net_down_mbps || machine.hardware?.network?.download_speed || 0,
+            bandwidthUnit: "Mbps",
+            downloadSpeed: machine.net_down_mbps || machine.hardware?.network?.download_speed || 0,
+            uploadSpeed: machine.net_up_mbps || machine.hardware?.network?.upload_speed || 0,
+            uploadUnit: "Mbps",
+            pricePerHour: machine.price_per_second ? weiPerSecondToUsdPerHour(machine.price_per_second) : 0,
+            maxDuration: machine.rent_duration_minutes ? `${machine.rent_duration_minutes} mins` : "N/A",
+            reliability: 0,
+            verified: machine.approved || false,
+            tflops: machine.hardware?.gpus?.[0]?.tflops || 0,
+          }));
+
+          setInstances(mappedInstances);
+          setTotalPages(data.pagination?.total_pages || data.total_pages || Math.ceil((data.pagination?.total || data.total || mappedInstances.length) / limit));
+        } else {
+          setInstances([]);
+          setTotalPages(1);
+        }
+      } catch (error) {
+        console.error('Error fetching marketplace:', error);
+        setInstances([]);
+        setTotalPages(1);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchInstances();
+  }, [
+    currentPage,
+    limit,
+    search,
+    location,
+    minPrice,
+    maxPrice,
+    sortBy,
+    sortOrder,
+    minVram,
+    maxVram,
+    minGpuCount,
+    maxGpuCount,
+    gpuModel,
+    computeApi,
+    minComputeCapability,
+    maxDuration,
+  ]);
+
+  const handlePageChange = (page: number) => {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Generate page numbers to show in pagination
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    
+    if (totalPages <= 7) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      if (currentPage > 3) pages.push('...');
+      const start = Math.max(2, currentPage - 1);
+      const end = Math.min(totalPages - 1, currentPage + 1);
+      for (let i = start; i <= end; i++) {
+        pages.push(i);
+      }
+      if (currentPage < totalPages - 2) pages.push('...');
+      pages.push(totalPages);
+    }
+    
+    return pages;
+  };
+
+  // Fetch templates
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchTemplates = async () => {
+      setIsLoadingTemplates(true);
+      try {
+        const response = await fetch("https://launchpad.swarmind.ai/templates", {
+          credentials: "include",
+        });
+
+        if (!response.ok) throw new Error("Failed to fetch templates");
+
+        const data = await response.json();
+        console.log('Templates response:', data);
+
+        // Handle response format: { items: [...], pagination: {...} }
+        let templatesArray = [];
+        if (data.items && Array.isArray(data.items)) {
+          templatesArray = data.items;
+        } else if (Array.isArray(data)) {
+          templatesArray = data;
+        } else if (data.templates && Array.isArray(data.templates)) {
+          templatesArray = data.templates;
+        }
+
+        console.log('templatesArray after parsing:', templatesArray);
+
+        // Map API response to UI format
+        const mappedTemplates = templatesArray.map((template: any) => ({
+          id: template.id,
+          name: template.template_name || template.name || "Unnamed Template",
+          description: template.template_description || template.description || "",
+          image_path: template.image_path,
+          template_name: template.template_name,
+          template_description: template.template_description,
+          vram_required_gb: template.vram_required_gb,
+          docker_server_name: template.docker_server_name,
+          docker_username: template.docker_username,
+          docker_password: template.docker_password,
+          disk_space_mb: template.disk_space_mb,
+          is_private: template.is_private,
+          docker_options: template.docker_options,
+          ports: template.ports,
+          environment_variables: template.environment_variables,
+          readme: template.readme,
+          on_start_script: template.on_start_script,
+          extra_filters: template.extra_filters,
+        }));
+
+        console.log('mappedTemplates:', mappedTemplates);
+        console.log('Setting templates, count:', mappedTemplates.length);
+
+        setTemplates(mappedTemplates);
+      } catch (error) {
+        console.error("Error fetching templates:", error);
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    };
+
+    fetchTemplates();
+  }, [user]);
+
+  const handleOpenTemplateSelector = () => {
+    setIsTemplateSelectorOpen(true);
+  };
+
+  const handleSelectTemplate = (template: any) => {
+    setSelectedTemplate(template);
+    setIsTemplateSelectorOpen(false);
+  };
+
+  const handleOpenRentModal = (instance: any) => {
+    setSelectedInstance(instance);
+    setIsRentModalOpen(true);
+  };
+  
   return (
     <div className="flex min-h-screen bg-slate-50 pt-16">
       {/* Left Sidebar */}
@@ -226,114 +429,188 @@ export function Instances() {
             <h3 className="text-sm font-medium text-white">Filter Options</h3>
           </div>
 
-          {/* Show Secure Cloud Only */}
+          {/* Search by Name */}
           <div className="mb-6">
-            <label className="flex items-center justify-between cursor-pointer">
-              <span className="text-sm">Show Secure Cloud Only</span>
-              <div className="relative">
-                <input
-                  type="checkbox"
-                  checked={showSecureCloud}
-                  onChange={(e) => setShowSecureCloud(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-              </div>
-            </label>
+            <label className="block text-xs text-white mb-2">Search by Name</label>
+            <input
+              type="text"
+              value={uiSearch}
+              onChange={(e) => setUiSearch(e.target.value)}
+              placeholder="Machine name..."
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
-          {/* Availability Section */}
+          {/* Location */}
           <div className="mb-6">
-            <h4 className="text-sm text-white mb-4">Availability</h4>
-            
-            {/* Host Reliability */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs">Host Reliability</span>
-                <span className="text-xs text-blue-400">{hostReliability}.00%</span>
-              </div>
+            <label className="block text-xs text-white mb-2">Location</label>
+            <div ref={locationInputRef} className="relative">
               <input
-                type="range"
-                min="0"
-                max="100"
-                value={hostReliability}
-                onChange={(e) => setHostReliability(Number(e.target.value))}
-                className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                type="text"
+                value={uiLocation}
+                onChange={handleLocationChange}
+                placeholder="e.g. US, Europe..."
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoComplete="off"
               />
-            </div>
-
-            {/* Max Instance Duration */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs">Max Instance Duration</span>
-                <span className="text-xs text-blue-400">{maxDuration} days</span>
-              </div>
-              <input
-                type="range"
-                min="1"
-                max="30"
-                value={maxDuration}
-                onChange={(e) => setMaxDuration(Number(e.target.value))}
-                className="w-full h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-              />
+              {showSuggestions && locationSuggestions.length > 0 && (
+                <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-700 rounded shadow-lg max-h-60 overflow-y-auto">
+                  {locationSuggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => handleLocationSelect(suggestion)}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-700 text-xs text-slate-300 transition"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Machine Options */}
+          {/* Price Range */}
           <div className="mb-6">
-            <h4 className="text-sm text-white mb-4">Machine Options</h4>
+            <h4 className="text-sm text-white mb-4">Price Range ($/hr)</h4>
             <div className="space-y-3">
-              <label className="flex items-center gap-2 cursor-pointer text-xs">
+              <div>
+                <label className="block text-xs mb-2">Min Price</label>
                 <input
-                  type="checkbox"
-                  checked={unverifiedMachines}
-                  onChange={(e) => setUnverifiedMachines(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={uiMinPrice}
+                  onChange={(e) => setUiMinPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span>Unverified Machines</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs">
+              </div>
+              <div>
+                <label className="block text-xs mb-2">Max Price</label>
                 <input
-                  type="checkbox"
-                  checked={incompatibleMachines}
-                  onChange={(e) => setIncompatibleMachines(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={uiMaxPrice}
+                  onChange={(e) => setUiMaxPrice(e.target.value)}
+                  placeholder="10.00"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span>Incompatible Machines</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs">
-                <input
-                  type="checkbox"
-                  checked={unavailableOffers}
-                  onChange={(e) => setUnavailableOffers(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span>Unavailable Offers</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer text-xs">
-                <input
-                  type="checkbox"
-                  checked={staticIP}
-                  onChange={(e) => setStaticIP(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                />
-                <span>Static IP Address</span>
-              </label>
+              </div>
             </div>
           </div>
 
-          {/* Min Cuda Version */}
+          {/* VRAM Range (GB) */}
           <div className="mb-6">
-            <label className="block text-xs text-white mb-2">Min Cuda Version</label>
-            <div className="relative">
-              <select className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <option>ESI - 11.0.3</option>
-                <option>11.0</option>
-                <option>11.1</option>
-                <option>12.0</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <h4 className="text-sm text-white mb-4">VRAM Range (GB)</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs mb-2">Min VRAM</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={uiMinVram}
+                  onChange={(e) => setUiMinVram(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-2">Max VRAM</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={uiMaxVram}
+                  onChange={(e) => setUiMaxVram(e.target.value)}
+                  placeholder="128"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
+          </div>
+
+          {/* GPU Count Range */}
+          <div className="mb-6">
+            <h4 className="text-sm text-white mb-4">GPU Count</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs mb-2">Min GPUs</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={uiMinGpuCount}
+                  onChange={(e) => setUiMinGpuCount(e.target.value)}
+                  placeholder="0"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs mb-2">Max GPUs</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={uiMaxGpuCount}
+                  onChange={(e) => setUiMaxGpuCount(e.target.value)}
+                  placeholder="8"
+                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* GPU Model */}
+          <div className="mb-6">
+            <label className="block text-xs text-white mb-2">GPU Model</label>
+            <input
+              type="text"
+              value={uiGpuModel}
+              onChange={(e) => setUiGpuModel(e.target.value)}
+              placeholder="e.g. RTX 4090"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Compute API */}
+          <div className="mb-6">
+            <label className="block text-xs text-white mb-2">Compute API</label>
+            <input
+              type="text"
+              value={uiComputeApi}
+              onChange={(e) => setUiComputeApi(e.target.value)}
+              placeholder="e.g. cuda"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Min Compute Capability */}
+          <div className="mb-6">
+            <label className="block text-xs text-white mb-2">Min Compute Capability</label>
+            <input
+              type="text"
+              value={uiMinComputeCapability}
+              onChange={(e) => setUiMinComputeCapability(e.target.value)}
+              placeholder="e.g. 8.6"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Max Duration (days) */}
+          <div className="mb-6">
+            <label className="block text-xs text-white mb-2">Max Duration (days)</label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={uiMaxDuration}
+              onChange={(e) => setUiMaxDuration(e.target.value)}
+              placeholder="30"
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {/* CLI Link */}
@@ -348,207 +625,255 @@ export function Instances() {
 
       {/* Main Content */}
       <main className="flex-1 ml-64 p-6">
-        {/* Template Selection */}
-        <div className="bg-white rounded-lg border border-slate-200 p-6 mb-6 flex items-center justify-between">
-          <span className="text-slate-600">No template selected</span>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Select Template
-          </button>
-        </div>
-
         {/* Filters Bar */}
         <div className="bg-white rounded-lg border border-slate-200 p-4 mb-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* GPU Count Filter */}
+          <div className="flex items-center gap-3 flex-wrap mb-3">
+            {/* Sort By */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-600">#GPUs:</span>
-              <div className="flex gap-1">
-                {["ANY", "1X", "2X", "4X", "8X", "9X+"].map((option) => (
-                  <button
-                    key={option}
-                    onClick={() => setGpuFilter(option)}
-                    className={`px-3 py-1 text-xs rounded transition ${
-                      gpuFilter === option
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    }`}
-                  >
-                    {option}
-                  </button>
-                ))}
+              <span className="text-sm text-slate-600">Sort By:</span>
+              <div className="relative">
+                <select
+                  value={uiSortBy}
+                  onChange={(e) => setUiSortBy(e.target.value)}
+                  className="px-3 py-1 pr-8 bg-slate-100 text-slate-600 text-xs rounded appearance-none cursor-pointer hover:bg-slate-200"
+                >
+                  <option value="price">Price</option>
+                  <option value="updated_at">Recently Updated</option>
+                  <option value="vram">VRAM</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
               </div>
             </div>
 
-            {/* Demand Filter */}
-            <div className="relative">
-              <select
-                value={demandFilter}
-                onChange={(e) => setDemandFilter(e.target.value)}
-                className="px-3 py-1 pr-8 bg-slate-100 text-slate-600 text-xs rounded appearance-none cursor-pointer hover:bg-slate-200"
-              >
-                <option>On-Demand</option>
-                <option>Spot</option>
-                <option>Reserved</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+            {/* Sort Order */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-600">Order:</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setUiSortOrder("asc")}
+                  className={`px-3 py-1 text-xs rounded transition ${
+                    uiSortOrder === "asc"
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  ASC
+                </button>
+                <button
+                  onClick={() => setUiSortOrder("desc")}
+                  className={`px-3 py-1 text-xs rounded transition ${
+                    uiSortOrder === "desc"
+                      ? "bg-blue-600 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  DESC
+                </button>
+              </div>
             </div>
+          </div>
 
-            {/* GPU Type Filter */}
-            <div className="relative">
-              <select
-                value={gpuTypeFilter}
-                onChange={(e) => setGpuTypeFilter(e.target.value)}
-                className="px-3 py-1 pr-8 bg-slate-100 text-slate-600 text-xs rounded appearance-none cursor-pointer hover:bg-slate-200"
-              >
-                <option>Any GPU</option>
-                <option>RTX 5090</option>
-                <option>RTX 5080</option>
-                <option>RTX PRO</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Location Filter */}
-            <div className="relative">
-              <select
-                value={locationFilter}
-                onChange={(e) => setLocationFilter(e.target.value)}
-                className="px-3 py-1 pr-8 bg-slate-100 text-slate-600 text-xs rounded appearance-none cursor-pointer hover:bg-slate-200"
-              >
-                <option>Planet Earth</option>
-                <option>North America</option>
-                <option>Europe</option>
-                <option>Asia</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-            </div>
-
-            {/* Sort Filter */}
-            <div className="relative ml-auto">
-              <select
-                value={sortFilter}
-                onChange={(e) => setSortFilter(e.target.value)}
-                className="px-3 py-1 pr-8 bg-slate-100 text-slate-600 text-xs rounded appearance-none cursor-pointer hover:bg-slate-200"
-              >
-                <option>Auto Sort</option>
-                <option>Price: Low to High</option>
-                <option>Price: High to Low</option>
-                <option>Performance</option>
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
-            </div>
+          {/* Search and Reset Buttons */}
+          <div className="flex items-center gap-2 pt-3 border-t border-slate-200">
+            <button
+              onClick={handleSearch}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+            >
+              <Search className="w-4 h-4" />
+              <span>Apply Filters</span>
+            </button>
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-600 text-sm rounded-lg hover:bg-slate-200 transition"
+            >
+              <X className="w-4 h-4" />
+              <span>Reset</span>
+            </button>
           </div>
         </div>
 
         {/* Instances List */}
         <div className="space-y-3">
-          {instances.map((instance) => (
+          {instances.length === 0 ? (
+            <div className="bg-white rounded-lg border border-slate-200 p-12 text-center">
+              <div className="text-slate-400 mb-2">
+                <RefreshCw className={`w-12 h-12 mx-auto mb-4 ${isLoading ? 'animate-spin' : ''}`} />
+              </div>
+              <h3 className="text-lg font-medium text-slate-900 mb-2">
+                {isLoading ? "Loading instances..." : "No instances found"}
+              </h3>
+              <p className="text-slate-600">
+                {isLoading
+                  ? "Please wait while we fetch available instances"
+                  : "No GPU instances are currently available"
+                }
+              </p>
+            </div>
+          ) : (
+            instances.map((instance) => (
             <div
               key={instance.id}
-              className="bg-white rounded-lg border border-slate-200 p-4 hover:shadow-md transition"
+              className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-md transition"
             >
-              <div className="grid grid-cols-12 gap-4 items-center">
-                {/* Machine ID & GPU Info */}
-                <div className="col-span-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-white border-2 border-slate-200 rounded flex items-center justify-center text-blue-600 text-xl flex-shrink-0">
-                      S
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-xs text-slate-500">{instance.id}</div>
-                      <div className="text-xs text-slate-400 mb-1">{instance.machineId}</div>
-                      <h3 className="text-sm font-medium text-slate-900 mb-1">{instance.gpuName}</h3>
-                      <div className="text-xs text-slate-600">
-                        <span className="font-medium">{instance.tflops}</span> TFLOPS
+              <div className="flex items-start justify-between gap-6">
+                {/* GPU Info */}
+                <div className="flex items-start gap-4 flex-1">
+                  <div className="w-14 h-14 bg-blue-50 border-2 border-blue-200 rounded-lg flex items-center justify-center text-blue-600 flex-shrink-0">
+                    <Cpu className="w-7 h-7" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-slate-900 mb-1">{instance.gpuName}</h3>
+                    <div className="text-sm text-slate-600 space-y-1">
+                      <div>
+                        {instance.gpuCount > 1 && <span>{instance.gpuCount}x GPU • </span>}
+                        <span>{instance.vram} GB VRAM</span>
+                        <span> • {instance.tflops > 0 ? `${instance.tflops} TFLOPS` : 'TFLOPS: N/A'}</span>
                       </div>
-                      <div className="text-xs text-slate-500">Max CUDA: 13.0</div>
+                      <div className="text-slate-500">
+                        CPU: {instance.cpu} ({instance.cpuCores} cores)
+                      </div>
+                      <div className="text-slate-500">
+                        RAM: {instance.ram} GB / Storage: {instance.storage} GB
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Specs */}
-                <div className="col-span-3">
-                  <div className="space-y-1 text-xs">
-                    <div>
-                      <span className="text-slate-900 font-medium">{instance.vram} {instance.vramUnit}</span>
-                      <span className="text-slate-400"> Vram</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-900 font-medium">{instance.cpu}</span>
-                    </div>
-                    <div className="text-slate-500">
-                      PCIe G:{instance.cpuCores}x {instance.cpuSpeed} GHz
-                    </div>
-                    <div>
-                      <span className="text-slate-900 font-medium">
-                        {instance.ram} MBps / {instance.ramMax} MBps
-                      </span>
-                    </div>
-                    <div className="text-slate-500">
-                      AMD EPYC {instance.cpu.split('/')[1] || '7xxx'}
-                    </div>
+                {/* Location */}
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-slate-400" />
+                  <span className="text-sm text-slate-600">{instance.location}</span>
+                </div>
+
+                {/* Network Speed */}
+                <div className="text-center">
+                  <div className="text-sm text-slate-500 mb-1">Network</div>
+                  <div className="font-semibold text-slate-900">
+                    {instance.downloadSpeed} Mbps ↓
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {instance.uploadSpeed} Mbps ↑
                   </div>
                 </div>
 
-                {/* Storage & Network */}
-                <div className="col-span-2">
-                  <div className="space-y-1 text-xs">
-                    <div>
-                      <span className="text-slate-900 font-medium">
-                        ø{instance.ram} MBps<br />
-                        ø{instance.ramMax} MBps
-                      </span>
+                {/* Duration */}
+                {instance.maxDuration !== "N/A" && instance.maxDuration !== "0 mins" && (
+                  <div className="text-center">
+                    <div className="text-sm text-slate-500 mb-1">Max Duration</div>
+                    <div className="font-semibold text-slate-900">
+                      {instance.maxDuration}
                     </div>
-                    <div className="text-slate-500 mt-2">
-                      {instance.storage} {instance.storageType}
-                    </div>
-                    <div className="text-slate-900 font-medium">{instance.diskName}</div>
-                    <div className="text-slate-500">{instance.diskSize}</div>
                   </div>
-                </div>
+                )}
 
-                {/* Bandwidth */}
-                <div className="col-span-2">
-                  <div className="space-y-1 text-xs">
-                    <div>
-                      <span className="text-slate-900 font-medium text-lg">{instance.bandwidth}</span>
-                      <span className="text-slate-500 text-xs"> {instance.bandwidthUnit}</span>
-                    </div>
-                    <div className="text-slate-500">
-                      {instance.downloadSpeed} {instance.uploadUnit}↓ / {instance.uploadSpeed} {instance.uploadUnit}↑
-                    </div>
+                {/* Price & Rent */}
+                <div className="text-right">
+                  <div className="text-2xl font-semibold text-slate-900 mb-2">
+                    ${instance.pricePerHour.toFixed(3)}<span className="text-sm text-slate-500">/hr</span>
                   </div>
-                </div>
-
-                {/* Reliability & Duration */}
-                <div className="col-span-1">
-                  <div className="space-y-1 text-xs">
-                    <div className={`px-2 py-1 rounded text-center ${
-                      instance.verified ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600"
-                    }`}>
-                      {instance.verified ? "verified" : "unverified"}
-                    </div>
-                    <div className="text-slate-500 mt-2">Max Duration</div>
-                    <div className="text-slate-900 font-medium">{instance.maxDuration}</div>
-                    <div className="text-slate-500 mt-1">Reliability</div>
-                    <div className="text-slate-900 font-medium">{instance.reliability}%</div>
-                  </div>
-                </div>
-
-                {/* Price & Rent Button */}
-                <div className="col-span-1 text-right">
-                  <div className="text-lg font-medium text-slate-900 mb-1">
-                    ${instance.pricePerHour.toFixed(3)}/hr
-                  </div>
-                  <button className="w-full px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition">
+                  <button
+                    onClick={() => handleOpenRentModal(instance)}
+                    className="px-6 py-2 text-sm font-medium rounded-lg transition bg-blue-600 text-white hover:bg-blue-700"
+                  >
                     RENT
                   </button>
                 </div>
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
+
+        {/* Pagination */}
+        {instances.length > 0 && totalPages > 1 && (
+        <div className="mt-6">
+          <Pagination>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage > 1) handlePageChange(currentPage - 1);
+                  }}
+                  className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+              {getPageNumbers().map((page, index) => (
+                <PaginationItem key={`${page}-${index}`}>
+                  {page === '...' ? (
+                    <PaginationEllipsis />
+                  ) : (
+                    <PaginationLink
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handlePageChange(page as number);
+                      }}
+                      isActive={currentPage === page}
+                      className="cursor-pointer"
+                    >
+                      {page}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (currentPage < totalPages) handlePageChange(currentPage + 1);
+                  }}
+                  className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+        )}
       </main>
+
+      {/* Template Selector Modal */}
+      <Dialog open={isTemplateSelectorOpen} onOpenChange={setIsTemplateSelectorOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Select Template ({templates.length} available)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-4">
+            {isLoadingTemplates ? (
+              <div className="flex items-center justify-center py-8">
+                <RefreshCw className="w-6 h-6 animate-spin text-blue-600" />
+              </div>
+            ) : templates.length === 0 ? (
+              <p className="text-center text-slate-500 py-8">No templates available</p>
+            ) : (
+              templates.map((template) => (
+                <div
+                  key={template.id}
+                  onClick={() => handleSelectTemplate(template)}
+                  className="p-4 border border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition"
+                >
+                  <h3 className="font-semibold text-slate-900 mb-1">{template.name}</h3>
+                  {template.description && (
+                    <p className="text-sm text-slate-600">{template.description}</p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rent Configuration Modal */}
+      {selectedInstance && (
+        <RentConfigurationModal
+          isOpen={isRentModalOpen}
+          onClose={() => setIsRentModalOpen(false)}
+          instance={selectedInstance}
+          selectedTemplateId={selectedTemplate?.id}
+          onRentSuccess={() => {
+            setIsRentModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

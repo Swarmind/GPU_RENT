@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, TrendingUp, Users, Calendar, Target } from "lucide-react";
+import { ModelParametersModal } from "./model-parameters-modal";
 import { CreateCampaignModal } from "./create-campaign-modal";
 import { CampaignDetailModal } from "./campaign-detail-modal";
 
@@ -144,10 +145,18 @@ const mockCampaigns = [
 
 export function Campaigns() {
   const [campaigns, setCampaigns] = useState(mockCampaigns);
+  const [isParametersModalOpen, setIsParametersModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [modelData, setModelData] = useState<any>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("trending");
+
+  const handleParametersContinue = (data: { modelParameters: number; datasetTokens: number; estimatedFLOPs: number }) => {
+    setModelData(data);
+    setIsParametersModalOpen(false);
+    setIsCreateModalOpen(true);
+  };
 
   const handleCreateCampaign = (campaignData: any) => {
     const newCampaign = {
@@ -160,8 +169,12 @@ export function Campaigns() {
       deadline: new Date(Date.now() + parseInt(campaignData.campaignDuration) * 24 * 60 * 60 * 1000).toISOString(),
       templateName: mockCampaigns[0].templateName,
       templateLanguage: "Python",
+      modelParameters: modelData?.modelParameters,
+      datasetTokens: modelData?.datasetTokens,
+      estimatedFLOPs: modelData?.estimatedFLOPs,
     };
     setCampaigns([newCampaign, ...campaigns]);
+    setModelData(null);
   };
 
   const filteredCampaigns = campaigns.filter(campaign => {
@@ -199,7 +212,7 @@ export function Campaigns() {
               <p className="text-slate-600">Support LLM training projects through community funding</p>
             </div>
             <button
-              onClick={() => setIsCreateModalOpen(true)}
+              onClick={() => setIsParametersModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
             >
               <Plus className="w-5 h-5" />
@@ -377,7 +390,7 @@ export function Campaigns() {
             </p>
             {selectedFilter === "all" && (
               <button
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={() => setIsParametersModalOpen(true)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
               >
                 Create Campaign
@@ -388,10 +401,20 @@ export function Campaigns() {
       </div>
 
       {/* Modals */}
+      <ModelParametersModal
+        isOpen={isParametersModalOpen}
+        onClose={() => setIsParametersModalOpen(false)}
+        onContinue={handleParametersContinue}
+      />
+
       <CreateCampaignModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setModelData(null);
+        }}
         onSubmit={handleCreateCampaign}
+        modelData={modelData}
       />
 
       <CampaignDetailModal

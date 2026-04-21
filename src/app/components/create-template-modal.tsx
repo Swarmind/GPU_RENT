@@ -1,25 +1,31 @@
 import { X, Plus, ChevronDown, Lock, LockOpen, HelpCircle, Check, AlertCircle, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/auth-context";
+import { useTemplate } from "../contexts/template-context";
+import { useNavigate } from "react-router";
 
 interface CreateTemplateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTemplateCreated?: () => void;
   templateId?: number; // If provided, modal is in edit mode
+  templateData?: any; // If provided, pre-fill form with this data (for forking)
 }
 
 const API_BASE_URL = 'https://launchpad.swarmind.ai';
 
-export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templateId }: CreateTemplateModalProps) {
+export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templateId, templateData }: CreateTemplateModalProps) {
   const { user } = useAuth();
+  const { setSelectedTemplate } = useTemplate();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<"config" | "readme">("config");
   const [templateName, setTemplateName] = useState("");
   const [description, setDescription] = useState("");
   const [imagePath, setImagePath] = useState("");
   const [dockerOptions, setDockerOptions] = useState("");
-  const [portType, setPortType] = useState<"TCP" | "UDP">("TCP");
-  const [port, setPort] = useState("");
+  const [portType, setPortType] = useState<"tcp" | "udp" | "not_specified">("not_specified");
+  const [hostPort, setHostPort] = useState("");
+  const [containerPort, setContainerPort] = useState("");
   const [ports, setPorts] = useState<string[]>([]);
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([
     { key: "", value: "" }
@@ -27,16 +33,19 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
   const [showPorts, setShowPorts] = useState(true);
   const [showEnvVars, setShowEnvVars] = useState(true);
   const [onStartScript, setOnStartScript] = useState("");
-  const [extraFilters, setExtraFilters] = useState("");
+  const [extraFilters, setExtraFilters] = useState<Array<{ key: string; value: string }>>([
+    { key: "", value: "" }
+  ]);
   const [dockerServer, setDockerServer] = useState("");
   const [dockerUsername, setDockerUsername] = useState("");
   const [dockerToken, setDockerToken] = useState("");
+  const [versionTag, setVersionTag] = useState("latest");
   const [diskSize, setDiskSize] = useState("8");
   const [diskUnit, setDiskUnit] = useState("GB");
-  const [addVolumeSettings, setAddVolumeSettings] = useState(false);
   const [isPrivate, setIsPrivate] = useState(true);
   const [vramRequired, setVramRequired] = useState("");
   const [maxPricePerHour, setMaxPricePerHour] = useState("");
+  const [showDockerAuth, setShowDockerAuth] = useState(false);
   
   // API states
   const [isLoading, setIsLoading] = useState(false);
@@ -64,6 +73,7 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
           credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
+            ...(user?.id && { 'X-USER-ID': user.id.toString() }),
           },
         });
 
@@ -86,10 +96,26 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
         setDockerUsername(template.docker_username || "");
         setPorts(template.ports || []);
         setOnStartScript(template.on_start_script || "");
-        setExtraFilters((template.extra_filters || []).join(' '));
+
+        // Convert extra_filters from array to key-value pairs
+        if (template.extra_filters && template.extra_filters.length > 0) {
+          const parsedFilters = template.extra_filters.map((filter: string) => {
+            const [key, ...valueParts] = filter.split('=');
+            return { key, value: valueParts.join('=') };
+          });
+          setExtraFilters(parsedFilters);
+        } else {
+          setExtraFilters([{ key: "", value: "" }]);
+        }
+
         setIsPrivate(template.is_private !== undefined ? template.is_private : true);
         setReadme(template.readme || "");
         
+        // Show Docker Auth section if credentials exist
+        if (template.docker_server_name || template.docker_username) {
+          setShowDockerAuth(true);
+        }
+
         // Convert environment variables from array to key-value pairs
         if (template.environment_variables && template.environment_variables.length > 0) {
           const parsedEnvVars = template.environment_variables.map((env: string) => {
@@ -135,6 +161,63 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
     fetchTemplate();
   }, [isOpen, templateId]);
 
+  // Pre-fill form with templateData when forking
+  useEffect(() => {
+    if (!isOpen || !templateData || templateId) return;
+
+    setTemplateName(templateData.template_name || "");
+    setDescription(templateData.template_description || "");
+    setImagePath(templateData.image_path || "");
+    setDockerOptions(templateData.docker_options || "");
+    setDockerServer(templateData.docker_server_name || "");
+    setDockerUsername(templateData.docker_username || "");
+    setPorts(templateData.ports || []);
+    setOnStartScript(templateData.on_start_script || "");
+    setReadme(templateData.readme || "");
+    setIsPrivate(templateData.is_private !== undefined ? templateData.is_private : true);
+
+    // Convert extra_filters from array to key-value pairs
+    if (templateData.extra_filters && templateData.extra_filters.length > 0) {
+      const parsedFilters = templateData.extra_filters.map((filter: string) => {
+        const [key, ...valueParts] = filter.split('=');
+        return { key, value: valueParts.join('=') };
+      });
+      setExtraFilters(parsedFilters);
+    } else {
+      setExtraFilters([{ key: "", value: "" }]);
+    }
+
+    // Convert environment variables from array to key-value pairs
+    if (templateData.environment_variables && templateData.environment_variables.length > 0) {
+      const parsedEnvVars = templateData.environment_variables.map((env: string) => {
+        const [key, ...valueParts] = env.split('=');
+        return { key, value: valueParts.join('=') };
+      });
+      setEnvVars(parsedEnvVars);
+    } else {
+      setEnvVars([{ key: "", value: "" }]);
+    }
+
+    // Convert disk space MB to GB/TB
+    if (templateData.disk_space_mb) {
+      if (templateData.disk_space_mb >= 1024) {
+        setDiskSize(String(templateData.disk_space_mb / 1024));
+        setDiskUnit("TB");
+      } else {
+        setDiskSize(String(templateData.disk_space_mb));
+        setDiskUnit("GB");
+      }
+    }
+
+    if (templateData.vram_required_gb) {
+      setVramRequired(String(templateData.vram_required_gb));
+    }
+
+    if (templateData.docker_server_name || templateData.docker_username) {
+      setShowDockerAuth(true);
+    }
+  }, [isOpen, templateData, templateId]);
+
   if (!isOpen) return null;
 
   const handleAddEnvVar = () => {
@@ -147,10 +230,39 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
     setEnvVars(newEnvVars);
   };
 
+  const handleRemoveEnvVar = (index: number) => {
+    const newEnvVars = [...envVars];
+    newEnvVars.splice(index, 1);
+    setEnvVars(newEnvVars);
+  };
+
+  const handleAddExtraFilter = () => {
+    setExtraFilters([...extraFilters, { key: "", value: "" }]);
+  };
+
+  const handleExtraFilterChange = (index: number, field: "key" | "value", value: string) => {
+    const newFilters = [...extraFilters];
+    newFilters[index][field] = value;
+    setExtraFilters(newFilters);
+  };
+
+  const handleRemoveExtraFilter = (index: number) => {
+    const newFilters = [...extraFilters];
+    newFilters.splice(index, 1);
+    setExtraFilters(newFilters);
+  };
+
   const handleAddPort = () => {
-    if (port) {
-      setPorts([...ports, `${port}/${portType}`]);
-      setPort("");
+    if (hostPort && containerPort) {
+      if (portType === "not_specified") {
+        // Add both TCP and UDP ports
+        setPorts([...ports, `${hostPort}:${containerPort}:tcp`, `${hostPort}:${containerPort}:udp`]);
+      } else {
+        // Add single port with specified protocol
+        setPorts([...ports, `${hostPort}:${containerPort}:${portType}`]);
+      }
+      setHostPort("");
+      setContainerPort("");
     }
   };
 
@@ -179,25 +291,28 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
       // Filter out empty environment variables
       const filteredEnvVars = envVars.filter(env => env.key && env.value);
 
-      // Parse extra filters into array
-      const extraFiltersArray = extraFilters
-        .split(/\s+/)
-        .filter(filter => filter.length > 0);
+      // Filter out empty extra filters
+      const filteredExtraFilters = extraFilters.filter(filter => filter.key && filter.value);
 
       const requestPayload = {
-        name: templateName,
+        template_name: templateName,
+        template_description: description,
         image_path: imagePath,
         docker_options: dockerOptions,
-        docker_registry: dockerServer || undefined,
+        docker_server_name: dockerServer || undefined,
         docker_username: dockerUsername || undefined,
         docker_password: dockerToken || undefined,
-        environment_variables: filteredEnvVars.length > 0 ? 
+        environment_variables: filteredEnvVars.length > 0 ?
           filteredEnvVars.map(env => `${env.key}=${env.value}`) : [],
         ports: ports,
-        extra_filters: extraFiltersArray,
+        extra_filters: filteredExtraFilters.length > 0 ?
+          filteredExtraFilters.map(filter => `${filter.key}=${filter.value}`) : [],
         disk_space_mb: diskSpaceMb,
         is_private: isPrivate,
+        vram_required_gb: vramRequired ? parseInt(vramRequired) : 0,
         max_price_per_hour_cents: maxPricePerHourCents,
+        on_start_script: onStartScript || undefined,
+        readme: readme || undefined,
       };
 
       const isEditMode = !!templateId;
@@ -214,6 +329,7 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
         method,
         headers: {
           'Content-Type': 'application/json',
+          ...(user?.id && { 'X-USER-ID': user.id.toString() }),
         },
         credentials: 'include',
         body: JSON.stringify(requestPayload),
@@ -291,11 +407,12 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
           setDescription("");
           setImagePath("");
           setDockerOptions("");
-          setPort("");
+          setHostPort("");
+          setContainerPort("");
           setPorts([]);
           setEnvVars([{ key: "", value: "" }]);
           setOnStartScript("");
-          setExtraFilters("");
+          setExtraFilters([{ key: "", value: "" }]);
           setDockerServer("");
           setDockerUsername("");
           setDockerToken("");
@@ -330,7 +447,148 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
       } else if (err.message?.includes('JSON')) {
         displayError = 'Server returned invalid response. Please contact support.';
       }
-      
+
+      setError(displayError);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateAndUse = async () => {
+    setIsLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      // Convert disk size to MB
+      let diskSpaceMb = parseInt(diskSize);
+      if (diskUnit === "TB") {
+        diskSpaceMb = diskSpaceMb * 1024;
+      }
+
+      // Convert price to cents
+      const maxPricePerHourCents = maxPricePerHour ?
+        Math.round(parseFloat(maxPricePerHour) * 100) : 0;
+
+      // Filter out empty environment variables
+      const filteredEnvVars = envVars.filter(env => env.key && env.value);
+
+      // Filter out empty extra filters
+      const filteredExtraFilters = extraFilters.filter(filter => filter.key && filter.value);
+
+      const requestPayload = {
+        template_name: templateName,
+        template_description: description,
+        image_path: imagePath,
+        docker_options: dockerOptions,
+        docker_server_name: dockerServer || undefined,
+        docker_username: dockerUsername || undefined,
+        docker_password: dockerToken || undefined,
+        environment_variables: filteredEnvVars.length > 0 ?
+          filteredEnvVars.map(env => `${env.key}=${env.value}`) : [],
+        ports: ports,
+        extra_filters: filteredExtraFilters.length > 0 ?
+          filteredExtraFilters.map(filter => `${filter.key}=${filter.value}`) : [],
+        disk_space_mb: diskSpaceMb,
+        is_private: isPrivate,
+        vram_required_gb: vramRequired ? parseInt(vramRequired) : 0,
+        max_price_per_hour_cents: maxPricePerHourCents,
+        on_start_script: onStartScript || undefined,
+        readme: readme || undefined,
+      };
+
+      console.log('=== CREATE & USE TEMPLATE REQUEST ===');
+      console.log('URL:', `${API_BASE_URL}/templates`);
+      console.log('Payload:', requestPayload);
+
+      const response = await fetch(`${API_BASE_URL}/templates`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(user?.id && { 'X-USER-ID': user.id.toString() }),
+        },
+        credentials: 'include',
+        body: JSON.stringify(requestPayload),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+
+      if (!response.ok) {
+        let errorMessage = `Failed to create template (${response.status})`;
+        const contentType = response.headers.get('content-type');
+
+        try {
+          if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            console.log('Error response (JSON):', errorData);
+            errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
+          } else {
+            const textError = await response.text();
+            console.log('Error response (text):', textError);
+            if (textError) errorMessage = textError;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse error response:', parseError);
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const responseText = await response.text();
+      console.log('Response body (raw):', responseText);
+
+      if (!responseText) {
+        throw new Error('Empty response from server');
+      }
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log('Response body (parsed):', data);
+      } catch (parseError) {
+        console.error('Failed to parse JSON response:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
+
+      if (data.id !== undefined) {
+        console.log('✓ Template created successfully with ID:', data.id);
+        console.log('Saving to context and navigating to /marketplace');
+        console.log('==============================');
+
+        // Save template to context
+        setSelectedTemplate(data);
+
+        // Close modal
+        onClose();
+
+        // Navigate to marketplace page
+        navigate('/marketplace');
+
+        // Call the onTemplateCreated callback if provided
+        if (onTemplateCreated) {
+          onTemplateCreated();
+        }
+      } else {
+        console.warn('No ID in response:', data);
+        throw new Error('No template ID in response');
+      }
+
+    } catch (err: any) {
+      console.error('=== CREATE & USE TEMPLATE ERROR ===');
+      console.error('Error type:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Full error:', err);
+      console.error('============================');
+
+      let displayError = err.message || 'Failed to create template';
+
+      if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
+        displayError = 'Network error: Cannot connect to launchpad.swarmind.ai. Please check CORS configuration.';
+      } else if (err.message?.includes('JSON')) {
+        displayError = 'Server returned invalid response. Please contact support.';
+      }
+
       setError(displayError);
     } finally {
       setIsLoading(false);
@@ -449,18 +707,54 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
 
               {/* Extra Filters */}
               <div>
+                <h3 className="text-lg mb-2 text-slate-900">Extra Filters</h3>
                 <p className="text-sm text-slate-600 mb-4">
-                  Extra Filters (CLI Format: verified=true gpu_display_active=true...)
+                  Additional filters to apply when selecting GPU instances
                 </p>
-                <textarea
-                  value={extraFilters}
-                  onChange={(e) => setExtraFilters(e.target.value)}
-                  className="w-full h-32 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                  placeholder="verified=true gpu_display_active=true"
-                />
+                <div className="border border-slate-200 rounded-lg p-4">
+                  <div className="space-y-2">
+                    {extraFilters.map((filter, index) => (
+                      <div key={index} className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Property"
+                          value={filter.key}
+                          onChange={(e) =>
+                            handleExtraFilterChange(index, "key", e.target.value)
+                          }
+                          className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Value"
+                          value={filter.value}
+                          onChange={(e) =>
+                            handleExtraFilterChange(index, "value", e.target.value)
+                          }
+                          className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {extraFilters.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveExtraFilter(index)}
+                            className="px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddExtraFilter}
+                      className="text-sm text-blue-600 hover:text-blue-700 flex items-center gap-1"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Filter
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              {/* VRAM and Price Requirements */}
+              {/* VRAM Required */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm text-slate-700 mb-2">
@@ -474,65 +768,6 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                     className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     min="0"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm text-slate-700 mb-2">
-                    Max Price per Hour ($)
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="e.g., 0.50, 1.00"
-                    value={maxPricePerHour}
-                    onChange={(e) => setMaxPricePerHour(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
-              </div>
-
-              {/* Docker Repository Authentication */}
-              <div>
-                <h3 className="text-lg mb-4 text-slate-900">
-                  Docker Repository Authentication
-                </h3>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-2">
-                      Server
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Server name (i.e: docker.io)"
-                      value={dockerServer}
-                      onChange={(e) => setDockerServer(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-2">
-                      Docker Username
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Docker Login Username"
-                      value={dockerUsername}
-                      onChange={(e) => setDockerUsername(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-slate-700 mb-2">
-                      Docker Access Token
-                    </label>
-                    <input
-                      type="password"
-                      placeholder="Docker Login Access Token"
-                      value={dockerToken}
-                      onChange={(e) => setDockerToken(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
                 </div>
               </div>
 
@@ -570,43 +805,41 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                     </div>
                   </div>
                 </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={addVolumeSettings}
-                    onChange={(e) => setAddVolumeSettings(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-sm text-slate-700">
-                    Add recommended volume settings
-                  </span>
-                </label>
               </div>
 
               {/* Public/Private Toggle */}
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => setIsPrivate(false)}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition ${
-                    !isPrivate
-                      ? "border-slate-300 bg-white"
-                      : "border-transparent bg-slate-100"
-                  }`}
-                >
-                  <LockOpen className="w-5 h-5" />
-                  <span>Public</span>
-                </button>
-                <button
-                  onClick={() => setIsPrivate(true)}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition ${
-                    isPrivate
-                      ? "border-blue-500 bg-blue-50 text-blue-600"
-                      : "border-transparent bg-slate-100"
-                  }`}
-                >
-                  <Lock className="w-5 h-5" />
-                  <span>Private</span>
-                </button>
+              <div className="pt-4">
+                <div className="flex gap-3 mb-3">
+                  <button
+                    onClick={() => setIsPrivate(false)}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition ${
+                      !isPrivate
+                        ? "border-slate-300 bg-white"
+                        : "border-transparent bg-slate-100"
+                    }`}
+                  >
+                    <LockOpen className="w-5 h-5" />
+                    <span>Public</span>
+                  </button>
+                  <button
+                    onClick={() => setIsPrivate(true)}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition ${
+                      isPrivate
+                        ? "border-blue-500 bg-blue-50 text-blue-600"
+                        : "border-transparent bg-slate-100"
+                    }`}
+                  >
+                    <Lock className="w-5 h-5" />
+                    <span>Private</span>
+                  </button>
+                </div>
+                {!isPrivate && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <strong>⚠️ Public template:</strong> All data in this template will be visible to everyone. Do not include sensitive information such as passwords, API keys, or private credentials.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Docker Repository */}
@@ -618,11 +851,11 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                   <div className="grid md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm text-slate-700 mb-2">
-                        Image Path:Tag
+                        Image Path
                       </label>
                       <input
                         type="text"
-                        placeholder="ex: pytorch/pytorch:latest, ubuntu/ubuntu"
+                        placeholder="ex: pytorch/pytorch, ubuntu/ubuntu"
                         value={imagePath}
                         onChange={(e) => setImagePath(e.target.value)}
                         className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -635,15 +868,13 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                       <label className="block text-sm text-slate-700 mb-2">
                         Version Tag
                       </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="Enter image path first"
-                          className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-400"
-                          disabled
-                        />
-                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      </div>
+                      <input
+                        type="text"
+                        placeholder="latest"
+                        value={versionTag}
+                        onChange={(e) => setVersionTag(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
                   </div>
 
@@ -674,42 +905,61 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                       />
                     </button>
                     {showPorts && (
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Port"
-                          value={port}
-                          onChange={(e) => setPort(e.target.value)}
-                          className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <div className="flex border border-slate-300 rounded-lg overflow-hidden">
+                      <div className="space-y-2">
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Host Port (e.g. 8080)"
+                            value={hostPort}
+                            onChange={(e) => setHostPort(e.target.value)}
+                            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Container Port (e.g. 80)"
+                            value={containerPort}
+                            onChange={(e) => setContainerPort(e.target.value)}
+                            className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <div className="flex border border-slate-300 rounded-lg overflow-hidden">
+                            <button
+                              onClick={() => setPortType("not_specified")}
+                              className={`px-4 py-2.5 transition ${
+                                portType === "not_specified"
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              Not specified
+                            </button>
+                            <button
+                              onClick={() => setPortType("tcp")}
+                              className={`px-4 py-2.5 transition ${
+                                portType === "tcp"
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              TCP
+                            </button>
+                            <button
+                              onClick={() => setPortType("udp")}
+                              className={`px-4 py-2.5 transition ${
+                                portType === "udp"
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              UDP
+                            </button>
+                          </div>
                           <button
-                            onClick={() => setPortType("TCP")}
-                            className={`px-4 py-2.5 transition ${
-                              portType === "TCP"
-                                ? "bg-blue-600 text-white"
-                                : "bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
+                            onClick={handleAddPort}
+                            className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
                           >
-                            TCP
-                          </button>
-                          <button
-                            onClick={() => setPortType("UDP")}
-                            className={`px-4 py-2.5 transition ${
-                              portType === "UDP"
-                                ? "bg-blue-600 text-white"
-                                : "bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            UDP
+                            <Plus className="w-5 h-5" />
                           </button>
                         </div>
-                        <button
-                          onClick={handleAddPort}
-                          className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
-                        >
-                          <Plus className="w-5 h-5" />
-                        </button>
                       </div>
                     )}
                     {ports.length > 0 && (
@@ -769,6 +1019,14 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                               }
                               className="flex-1 px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
+                            {envVars.length > 1 && (
+                              <button
+                                onClick={() => handleRemoveEnvVar(index)}
+                                className="px-3 py-2.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-lg transition"
+                              >
+                                <X className="w-5 h-5" />
+                              </button>
+                            )}
                           </div>
                         ))}
                         <button
@@ -783,10 +1041,77 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                   </div>
                 </div>
               </div>
+
+              {/* Docker Repository Authentication (Optional) */}
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg text-slate-900">
+                    Docker Repository Authentication (Optional)
+                  </h3>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showDockerAuth}
+                      onChange={(e) => setShowDockerAuth(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-slate-700">
+                      Enable Authentication
+                    </span>
+                  </label>
+                </div>
+                
+                {showDockerAuth && (
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-2">
+                        Server
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Server name (i.e: docker.io)"
+                        value={dockerServer}
+                        onChange={(e) => setDockerServer(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-2">
+                        Docker Username
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Docker Login Username"
+                        value={dockerUsername}
+                        onChange={(e) => setDockerUsername(e.target.value)}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-slate-700 mb-2">
+                        Docker Access Token
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="Docker Login Access Token"
+                        value={dockerToken}
+                        onChange={(e) => setDockerToken(e.target.value)}
+                        disabled={!isPrivate}
+                        className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div>
+              <label className="block text-sm text-slate-700 mb-2">
+                README
+              </label>
               <textarea
+                value={readme}
+                onChange={(e) => setReadme(e.target.value)}
                 placeholder="Add your README content here..."
                 className="w-full h-96 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               />
@@ -820,7 +1145,7 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
                 )}
               </button>
               <button
-                onClick={handleSubmit}
+                onClick={handleCreateAndUse}
                 className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isLoading}
               >

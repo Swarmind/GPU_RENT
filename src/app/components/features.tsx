@@ -83,7 +83,7 @@ export function Features() {
             Join the decentralized GPU marketplace today
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
-            <Link to="/instances" className="px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-lg">
+            <Link to="/marketplace" className="px-8 py-4 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition text-lg">
               Rent GPUs
             </Link>
             <Link to="/machines" className="px-8 py-4 bg-transparent border-2 border-white text-white rounded-lg hover:bg-white/10 transition text-lg">

@@ -1,4 +1,4 @@
-import { Menu, X, User, LogOut } from "lucide-react";
+import { Menu, X, User, LogOut, Wallet as WalletIcon } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router";
 import { WalletButton } from "./wallet-button";
@@ -42,8 +42,8 @@ export function Header() {
               isMenuOpen ? "block" : "hidden"
             } md:flex items-center gap-6 mt-4 md:mt-0`}
           >
-            <a href="#pricing" className="text-slate-600 hover:text-slate-900 transition">Pricing</a>
-            <Link to="/instances" className="text-slate-600 hover:text-slate-900 transition">Instances</Link>
+            <Link to="/marketplace" className="text-slate-600 hover:text-slate-900 transition">Marketplace</Link>
+            <Link to="/deployments" className="text-slate-600 hover:text-slate-900 transition">Deployments</Link>
             <Link to="/templates" className="text-slate-600 hover:text-slate-900 transition">Templates</Link>
             <Link to="/machines" className="text-slate-600 hover:text-slate-900 transition">Machines</Link>
             <Link to="/campaigns" className="text-slate-600 hover:text-slate-900 transition">Campaigns</Link>
@@ -51,22 +51,43 @@ export function Header() {
             
             {/* Auth Buttons or User Menu */}
             {user ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span>{user.username}</span>
+              <>
+                <Link to="/wallet">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <WalletIcon className="h-4 w-4" />
+                    <span>Wallet</span>
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={logout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      <span>{user.username}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile" className="cursor-pointer">
+                        <User className="mr-2 h-4 w-4" />
+                        <span>Profile</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link to="/wallet" className="cursor-pointer">
+                        <WalletIcon className="mr-2 h-4 w-4" />
+                        <span>Wallet</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={logout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
             ) : (
               <div className="flex items-center gap-3">
                 <Link to="/login">

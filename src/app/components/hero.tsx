@@ -12,8 +12,8 @@ export function Hero() {
           Rent GPUs, share your hardware, or crowdfund LLM training. Access powerful compute resources with pre-configured templates and instant deployment.
         </p>
         <div className="flex gap-4 justify-center flex-wrap">
-          <Link to="/instances" className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg">
-            Browse Instances
+          <Link to="/marketplace" className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-lg">
+            Browse Marketplace
           </Link>
           <Link to="/campaigns" className="px-8 py-4 bg-white text-slate-900 rounded-lg border-2 border-slate-200 hover:border-slate-300 transition text-lg">
             View Campaigns

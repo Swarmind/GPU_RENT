@@ -5,6 +5,11 @@ interface CreateCampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (campaign: any) => void;
+  modelData?: {
+    modelParameters: number;
+    datasetTokens: number;
+    estimatedFLOPs: number;
+  } | null;
 }
 
 // Mock templates from the Templates page
@@ -25,7 +30,7 @@ const gpuOptions = [
   "V100",
 ];
 
-export function CreateCampaignModal({ isOpen, onClose, onSubmit }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ isOpen, onClose, onSubmit, modelData }: CreateCampaignModalProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -108,6 +113,36 @@ export function CreateCampaignModal({ isOpen, onClose, onSubmit }: CreateCampaig
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
+          {/* Model Information (if available) */}
+          {modelData && (
+            <div className="mb-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-medium text-blue-900 mb-3">Model Training Parameters</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <div className="text-xs text-blue-700 mb-1">Model Parameters</div>
+                  <div className="text-lg font-semibold text-blue-900">
+                    {modelData.modelParameters.toFixed(1)}B
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-700 mb-1">Dataset Size</div>
+                  <div className="text-lg font-semibold text-blue-900">
+                    {modelData.datasetTokens.toFixed(1)}B tokens
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-700 mb-1">Estimated Compute</div>
+                  <div className="text-sm font-semibold text-blue-900">
+                    {modelData.estimatedFLOPs >= 1e21
+                      ? `${(modelData.estimatedFLOPs / 1e21).toFixed(2)} ZettaFLOPs`
+                      : `${(modelData.estimatedFLOPs / 1e18).toFixed(2)} ExaFLOPs`
+                    }
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Campaign Information */}
           <div className="mb-8">
             <h3 className="text-lg font-medium text-slate-900 mb-4">Campaign Information</h3>

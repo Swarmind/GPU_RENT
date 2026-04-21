@@ -1,5 +1,5 @@
 import { X, Copy, Check, Terminal } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/auth-context";
 
 interface EnrollmentTokenModalProps {
@@ -15,20 +15,80 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
   const [error, setError] = useState<string | null>(null);
   const [enrollmentToken, setEnrollmentToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [locationSuggestions, setLocationSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const locationInputRef = useRef<HTMLDivElement>(null);
   
   const [formData, setFormData] = useState({
     machineName: "",
-    operation: "enroll",
-    rentDurationMins: 0,
+    location: "",
+    pricePerHour: "" as string | number,
+    rentDurationMins: "" as string | number,
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: name === 'rentDurationMins' ? Number(value) : value
+      [name]: value
     }));
+
+    // Trigger location suggestions
+    if (name === 'location') {
+      setShowSuggestions(true);
+      fetchLocationSuggestions(value);
+    }
   };
+
+  const fetchLocationSuggestions = async (query: string) => {
+    if (!query || query.length < 2) {
+      setLocationSuggestions([]);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/locations/suggest?q=${encodeURIComponent(query)}&limit=10`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Extract location strings from items array
+        const locations = (data.items || []).map((item: any) => item.location);
+        setLocationSuggestions(locations);
+      }
+    } catch (err) {
+      console.error('Failed to fetch location suggestions:', err);
+      setLocationSuggestions([]);
+    }
+  };
+
+  const handleLocationSelect = (location: string) => {
+    setFormData(prev => ({
+      ...prev,
+      location: location
+    }));
+    setShowSuggestions(false);
+    setLocationSuggestions([]);
+  };
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (locationInputRef.current && !locationInputRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,14 +97,35 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
 
     try {
       const requestUrl = `${API_BASE_URL}/machines/request`;
+
+      // Convert string inputs to numbers
+      const pricePerHour = typeof formData.pricePerHour === 'string'
+        ? parseFloat(formData.pricePerHour) || 0
+        : formData.pricePerHour;
+
+      const rentDurationMins = typeof formData.rentDurationMins === 'string'
+        ? parseInt(formData.rentDurationMins) || 0
+        : formData.rentDurationMins;
+
+      // Convert USD/hour to USDC wei/second (USDC has 6 decimals)
+      // Formula: (price_in_usd * 10^6) / 3600
+      const pricePerSecondWei = Math.floor((pricePerHour * 1_000_000) / 3600);
+
       const requestPayload = {
-        operation: formData.operation,
+        operation: "enroll",
         machine_name: formData.machineName,
-        rent_duration_mins: formData.rentDurationMins,
+        location: formData.location,
+        price_per_second: pricePerSecondWei,
+        rent_duration_mins: rentDurationMins,
       };
 
       console.log('=== ENROLLMENT TOKEN REQUEST ===');
       console.log('URL:', requestUrl);
+      console.log('Price conversion:', {
+        pricePerHourUSD: pricePerHour,
+        pricePerSecondWei: pricePerSecondWei,
+        formula: `(${pricePerHour} * 1,000,000) / 3600`
+      });
       console.log('Payload:', requestPayload);
       console.log('Credentials:', 'include');
 
@@ -142,8 +223,9 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
   const handleClose = () => {
     setFormData({
       machineName: "",
-      operation: "enroll",
-      rentDurationMins: 0,
+      location: "",
+      pricePerHour: "",
+      rentDurationMins: "",
     });
     setEnrollmentToken(null);
     setError(null);
@@ -193,17 +275,51 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
 
               <div className="mb-6">
                 <label className="block text-sm text-slate-700 mb-2">
-                  Operation Type
+                  Location
+                </label>
+                <div ref={locationInputRef} className="relative">
+                  <input
+                    type="text"
+                    name="location"
+                    value={formData.location}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="USA, New York"
+                    autoComplete="off"
+                  />
+                  {showSuggestions && locationSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {locationSuggestions.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => handleLocationSelect(suggestion)}
+                          className="w-full text-left px-3 py-2 hover:bg-slate-100 text-sm text-slate-700 transition"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">Specify location in format: Country, City</p>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm text-slate-700 mb-2">
+                  Price per Hour (USD)
                 </label>
                 <input
-                  type="text"
-                  name="operation"
-                  value={formData.operation}
+                  type="number"
+                  name="pricePerHour"
+                  value={formData.pricePerHour || ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="enroll"
+                  step="0.01"
+                  min="0"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  placeholder="3.60"
                 />
-                <p className="text-xs text-slate-500 mt-1">Operation type (default: enroll)</p>
+                <p className="text-xs text-slate-500 mt-1">Set the hourly rental price for your machine</p>
               </div>
 
               <div className="mb-6">
@@ -213,9 +329,9 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
                 <input
                   type="number"
                   name="rentDurationMins"
-                  value={formData.rentDurationMins}
+                  value={formData.rentDurationMins || ''}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   placeholder="0"
                 />
                 <p className="text-xs text-slate-500 mt-1">Leave as 0 for default duration</p>
@@ -299,11 +415,11 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
               <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex gap-2">
                   <Terminal className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm text-green-900 font-medium mb-2">Success! Use this token with the CLI:</p>
-                    <div className="bg-slate-900 rounded px-3 py-2 mt-2">
-                      <code className="text-sm text-green-400">
-                        anthive enroll --token {enrollmentToken}
+                    <div className="bg-slate-900 rounded px-3 py-2 mt-2 overflow-x-auto">
+                      <code className="text-sm text-green-400 break-all">
+                        make run-connect TOKEN={enrollmentToken}
                       </code>
                     </div>
                     <p className="text-xs text-green-700 mt-2">

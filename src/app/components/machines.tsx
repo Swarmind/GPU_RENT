@@ -3,109 +3,95 @@ import { Plus, Server, Edit, Trash2, Power, PowerOff } from "lucide-react";
 import { EnrollmentTokenModal } from "./enrollment-token-modal";
 import { useAuth } from "../contexts/auth-context";
 
-// Mock machine data for the provider
-const mockMachines = [
-  {
-    id: "1",
-    machineName: "GPU Server Alpha",
-    machineId: "best:2097334",
-    location: "Spain, ES",
-    gpuName: "1x RTX 5090",
-    gpuCount: 1,
-    tflops: 100.1,
-    vram: 32,
-    vramUnit: "GB",
-    cpu: "ROME/X32/GM.2T",
-    cpuCores: 32,
-    cpuSpeed: 2.0,
-    ram: 49485,
-    ramMax: 201762,
-    storage: 92,
-    pricePerHour: 0.378,
-    maxDuration: "5 mos, 2d",
-    reliability: 99.28,
-    verified: true,
-    status: "active",
-    rentals: 24,
-    revenue: 217.34
-  },
-  {
-    id: "2",
-    machineName: "GPU Server Beta",
-    machineId: "best:2382573",
-    location: "Michigan, US",
-    gpuName: "1x RTX PRO 6000",
-    gpuCount: 1,
-    tflops: 93.6,
-    vram: 96,
-    vramUnit: "GB",
-    cpu: "K10-PG DZ4 Serries",
-    cpuCores: 64,
-    cpuSpeed: 3.4,
-    ram: 92251,
-    ramMax: 92251,
-    storage: 134,
-    pricePerHour: 0.738,
-    maxDuration: "10 days",
-    reliability: 99.73,
-    verified: true,
-    status: "active",
-    rentals: 18,
-    revenue: 398.52
-  },
-  {
-    id: "3",
-    machineName: "GPU Server Gamma",
-    machineId: "best:2482573",
-    location: "Michigan, US",
-    gpuName: "2x RTX PRO 6000",
-    gpuCount: 2,
-    tflops: 187.1,
-    vram: 96,
-    vramUnit: "GB",
-    cpu: "K10-PG DZ4 Serries",
-    cpuCores: 64,
-    cpuSpeed: 3.4,
-    ram: 91377,
-    ramMax: 92051,
-    storage: 248,
-    pricePerHour: 1.472,
-    maxDuration: "10 days",
-    reliability: 99.43,
-    verified: true,
-    status: "rented",
-    rentals: 12,
-    revenue: 531.84
-  }
-];
+// Mock data removed - using real API calls only
 
 const API_BASE_URL = 'https://launchpad.swarmind.ai';
 
 // Helper function to map API response to UI format
 function mapApiMachineToUI(apiMachine: any) {
+  // Extract GPU information from hardware
+  let gpuName = "GPU Info N/A";
+  let gpuCount = 0;
+  let totalVram = 0;
+  
+  if (apiMachine.hardware?.gpus && Array.isArray(apiMachine.hardware.gpus)) {
+    const gpus = apiMachine.hardware.gpus;
+    gpuCount = gpus.length;
+    
+    if (gpuCount > 0) {
+      // Get the name of the first GPU
+      const firstGpuName = gpus[0].name || "Unknown GPU";
+      
+      // Calculate total VRAM across all GPUs
+      totalVram = gpus.reduce((sum: number, gpu: any) => sum + (gpu.vram_mb || 0), 0);
+      
+      // Format GPU name with count
+      if (gpuCount === 1) {
+        gpuName = firstGpuName;
+      } else {
+        // Check if all GPUs have the same name
+        const allSameName = gpus.every((gpu: any) => gpu.name === firstGpuName);
+        if (allSameName) {
+          gpuName = `${gpuCount}x ${firstGpuName}`;
+        } else {
+          // Mixed GPUs
+          gpuName = `${gpuCount}x Mixed GPUs`;
+        }
+      }
+      
+      console.log(`GPU mapping for "${apiMachine.name}":`, {
+        gpuCount,
+        gpuName,
+        totalVramMB: totalVram,
+        totalVramGB: Math.round(totalVram / 1024),
+        rawGpus: gpus
+      });
+    }
+  }
+  
+  // Extract CPU information
+  const cpuCores = apiMachine.hardware?.cpu?.cores || 0;
+  const cpuModelName = apiMachine.hardware?.cpu?.model_name || "CPU Info N/A";
+  
+  // Extract RAM information (convert from bytes to GB)
+  const ramTotalGB = apiMachine.ram_total_bytes ? Math.round(apiMachine.ram_total_bytes / (1024 ** 3)) : 0;
+  const ramUsableGB = apiMachine.ram_usable_bytes ? Math.round(apiMachine.ram_usable_bytes / (1024 ** 3)) : 0;
+  
+  // Extract storage information (convert from bytes to GB)
+  const storage = apiMachine.hardware?.disks?.[0]?.size_bytes 
+    ? Math.round(apiMachine.hardware.disks[0].size_bytes / (1024 ** 3)) 
+    : 0;
+  
+  // Convert price from USDC wei/second to USD/hour
+  // USDC has 6 decimals, so we divide by 1,000,000
+  // Formula: (price_per_second * 3600) / 10^6
+  const pricePerHour = apiMachine.price_per_second 
+    ? (apiMachine.price_per_second * 3600) / 1_000_000 
+    : 0;
+
   return {
     id: apiMachine.id || String(Math.random()),
     machineName: apiMachine.name || "Unnamed Machine",
     machineId: apiMachine.id || "N/A",
-    location: apiMachine.request_location || "Unknown",
-    gpuName: "GPU Info N/A", // API doesn't provide GPU details yet
-    gpuCount: 1,
-    tflops: 0,
-    vram: 0,
+    location: apiMachine.detected_geo || apiMachine.request_location || "Unknown",
+    gpuName: gpuName,
+    gpuCount: gpuCount,
+    tflops: 0, // Not provided by API
+    vram: totalVram > 0 ? Math.round(totalVram / 1024) : 0, // Convert MB to GB
     vramUnit: "GB",
-    cpu: "CPU Info N/A",
-    cpuCores: 0,
-    cpuSpeed: 0,
-    ram: 0,
-    ramMax: 0,
-    storage: 0,
-    pricePerHour: 0,
+    cpu: cpuModelName,
+    cpuCores: cpuCores,
+    cpuSpeed: 0, // Not provided directly by API
+    ram: ramUsableGB,
+    ramMax: ramTotalGB,
+    storage: storage,
+    pricePerHour: pricePerHour,
     maxDuration: apiMachine.rent_duration_minutes ? `${apiMachine.rent_duration_minutes} mins` : "N/A",
-    reliability: 0,
-    verified: false,
-    status: apiMachine.status || "inactive",
-    rentals: 0,
-    revenue: 0,
+    reliability: 0, // Not provided by API
+    verified: apiMachine.approved || false,
+    status: apiMachine.approved ? "active" : "inactive",
+    rentals: 0, // Not provided by API
+    revenue: 0, // Not provided by API
     // Additional API fields
     assignedIp: apiMachine.assigned_ip,
     updatedAt: apiMachine.updated_at,
@@ -114,42 +100,59 @@ function mapApiMachineToUI(apiMachine: any) {
 
 export function Machines() {
   const { user } = useAuth();
-  const [machines, setMachines] = useState(mockMachines);
+  const [machines, setMachines] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<"all" | "active" | "rented" | "inactive">("all");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [limit] = useState(10);
 
-  // Fetch machines from API when user is authenticated
+  // Fetch machines from API
   useEffect(() => {
-    if (user) {
-      fetchUserMachines();
-    } else {
-      // Use mock data when not authenticated
-      setMachines(mockMachines);
-    }
-  }, [user]);
+    fetchUserMachines();
+  }, [user, currentPage]);
 
   const fetchUserMachines = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: limit.toString(),
+      });
+
+      const url = `${API_BASE_URL}/machines?${params}`;
+      
       console.log('=== FETCHING USER MACHINES ===');
       console.log('User authenticated:', !!user);
-      console.log('API URL:', `${API_BASE_URL}/machines/user`);
+      console.log('User ID:', user?.id);
+      console.log('API URL:', url);
 
-      const response = await fetch(`${API_BASE_URL}/machines/user`, {
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add X-User-ID header if user is authenticated
+      if (user?.id) {
+        headers['X-User-ID'] = user.id;
+        console.log('Added X-User-ID header:', user.id);
+      } else {
+        console.log('No user ID available for X-User-ID header');
+      }
+
+      console.log('Request headers:', headers);
+
+      const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         credentials: 'include',
       });
 
       console.log('Response status:', response.status);
       console.log('Response ok:', response.ok);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
       if (!response.ok) {
         let errorMessage = `Failed to fetch machines (${response.status})`;
@@ -172,38 +175,46 @@ export function Machines() {
         throw new Error(errorMessage);
       }
 
-      const responseText = await response.text();
-      console.log('Response body (raw):', responseText);
+      const data = await response.json();
+      console.log('Response body:', data);
+
+      // Handle different response formats
+      let machinesArray: any[] = [];
       
-      if (!responseText) {
-        console.warn('Empty response, using mock data');
-        setMachines(mockMachines);
+      if (data.items && Array.isArray(data.items)) {
+        // New API format with "items"
+        console.log('✓ Fetched machines (items):', data.items.length);
+        machinesArray = data.items;
+      } else if (data.machines && Array.isArray(data.machines)) {
+        // Old API format with "machines"
+        console.log('✓ Fetched machines (machines):', data.machines.length);
+        machinesArray = data.machines;
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        console.log('✓ Fetched machines (array):', data.length);
+        machinesArray = data;
+      } else {
+        console.warn('Invalid response format, expected { items: [] }, { machines: [] } or array');
+        setMachines([]);
+        setTotalPages(1);
+        console.log('==============================');
         return;
       }
 
-      let data;
-      try {
-        data = JSON.parse(responseText);
-        console.log('Response body (parsed):', data);
-      } catch (parseError) {
-        console.error('Failed to parse JSON response:', parseError);
-        throw new Error('Invalid JSON response from server');
+      if (machinesArray.length === 0) {
+        console.log('No machines found, showing empty state');
+        setMachines([]);
+      } else {
+        const mappedMachines = machinesArray.map(mapApiMachineToUI);
+        console.log('✓ Mapped machines:', mappedMachines);
+        setMachines(mappedMachines);
       }
 
-      if (data.machines && Array.isArray(data.machines)) {
-        console.log('✓ Fetched machines:', data.machines.length);
-        
-        if (data.machines.length === 0) {
-          console.log('No machines found, showing empty state');
-          setMachines([]);
-        } else {
-          const mappedMachines = data.machines.map(mapApiMachineToUI);
-          console.log('✓ Mapped machines:', mappedMachines);
-          setMachines(mappedMachines);
-        }
+      // Set total pages if provided by API
+      if (data.total) {
+        setTotalPages(Math.ceil(data.total / limit));
       } else {
-        console.warn('Invalid response format, expected { machines: [] }');
-        setMachines(mockMachines);
+        setTotalPages(Math.ceil(machinesArray.length / limit));
       }
 
       console.log('==============================');
@@ -215,9 +226,22 @@ export function Machines() {
       console.error('Full error:', err);
       console.error('============================');
       
-      setError(err.message || 'Failed to fetch machines');
-      // Fall back to mock data on error
-      setMachines(mockMachines);
+      // Provide user-friendly error messages
+      let userFriendlyMessage = err.message || 'Failed to fetch machines';
+      
+      if (err.message?.includes('sql: Scan error')) {
+        userFriendlyMessage = 'Backend database error: The server is having trouble reading machine data. Please contact support or try again later.';
+      } else if (err.message?.includes('NULL to string')) {
+        userFriendlyMessage = 'Data integrity issue: Some machine records have missing required fields. Please contact support.';
+      } else if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
+        userFriendlyMessage = 'Network error: Cannot connect to the server. Please check your internet connection.';
+      } else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+        userFriendlyMessage = 'Authentication required: Please log in to view your machines.';
+      }
+      
+      setError(userFriendlyMessage);
+      setMachines([]);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
@@ -243,9 +267,71 @@ export function Machines() {
     ));
   };
 
-  const deleteMachine = (id: string) => {
-    if (confirm("Are you sure you want to remove this machine from the marketplace?")) {
+  const deleteMachine = async (id: string) => {
+    if (!confirm("Are you sure you want to remove this machine from the marketplace?")) {
+      return;
+    }
+
+    try {
+      const url = `${API_BASE_URL}/machines/${id}`;
+      
+      console.log('=== DELETING MACHINE ===');
+      console.log('Machine ID:', id);
+      console.log('API URL:', url);
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      // Add X-User-ID header if user is authenticated
+      if (user?.id) {
+        headers['X-User-ID'] = user.id;
+      }
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers,
+        credentials: 'include',
+      });
+
+      console.log('Delete response status:', response.status);
+
+      if (!response.ok) {
+        let errorMessage = `Failed to delete machine (${response.status})`;
+        const contentType = response.headers.get('content-type');
+        
+        try {
+          if (contentType?.includes('application/json')) {
+            const errorData = await response.json();
+            console.log('Delete error response (JSON):', errorData);
+            errorMessage = errorData.message || errorData.error || errorData.detail || errorMessage;
+          } else {
+            const textError = await response.text();
+            console.log('Delete error response (text):', textError);
+            if (textError) errorMessage = textError;
+          }
+        } catch (parseError) {
+          console.error('Failed to parse delete error response:', parseError);
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      console.log('✓ Machine deleted successfully');
+      console.log('========================');
+
+      // Remove machine from local state
       setMachines(machines.filter(machine => machine.id !== id));
+      
+      // Optionally show success message
+      alert('Machine deleted successfully');
+      
+    } catch (err: any) {
+      console.error('=== DELETE MACHINE ERROR ===');
+      console.error('Error:', err);
+      console.error('===========================');
+      
+      alert(`Failed to delete machine: ${err.message}`);
     }
   };
 
@@ -323,16 +409,7 @@ export function Machines() {
           {error && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> {error}. Showing sample data.
-              </p>
-            </div>
-          )}
-
-          {/* User Auth Status */}
-          {!user && (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Demo Mode:</strong> You're viewing sample data. Please log in to see your actual machines.
+                <strong>Error:</strong> {error}
               </p>
             </div>
           )}
@@ -441,28 +518,39 @@ export function Machines() {
                     <div>
                       <div className="text-xs text-slate-500 mb-1">GPU</div>
                       <div className="text-sm font-medium text-slate-900">{machine.gpuName}</div>
-                      <div className="text-xs text-slate-500">{machine.tflops} TFLOPS</div>
+                      {machine.gpuCount > 0 && (
+                        <div className="text-xs text-slate-500">{machine.gpuCount} GPU{machine.gpuCount > 1 ? 's' : ''}</div>
+                      )}
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">VRAM</div>
                       <div className="text-sm font-medium text-slate-900">
-                        {machine.vram} {machine.vramUnit}
+                        {machine.vram > 0 ? `${machine.vram} ${machine.vramUnit}` : 'N/A'}
                       </div>
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">CPU</div>
-                      <div className="text-sm font-medium text-slate-900">{machine.cpuCores} cores</div>
-                      <div className="text-xs text-slate-500">{machine.cpuSpeed} GHz</div>
+                      <div className="text-sm font-medium text-slate-900 truncate" title={machine.cpu}>
+                        {machine.cpu}
+                      </div>
+                      {machine.cpuCores > 0 && (
+                        <div className="text-xs text-slate-500">{machine.cpuCores} cores</div>
+                      )}
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">RAM</div>
                       <div className="text-sm font-medium text-slate-900">
-                        {machine.ram} / {machine.ramMax} MBps
+                        {machine.ram > 0 ? `${machine.ram} GB` : 'N/A'}
                       </div>
+                      {machine.ramMax > 0 && machine.ramMax !== machine.ram && (
+                        <div className="text-xs text-slate-500">/ {machine.ramMax} GB total</div>
+                      )}
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 mb-1">Storage</div>
-                      <div className="text-sm font-medium text-slate-900">{machine.storage} GB</div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {machine.storage > 0 ? `${machine.storage} GB` : 'N/A'}
+                      </div>
                     </div>
                   </div>
 
