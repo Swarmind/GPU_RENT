@@ -7,5 +7,5 @@ function resolveBaseUrl(envValue: string | undefined, fallback: string): string 
   return trimTrailingSlash(value);
 }
 
-export const API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_BASE_URL, "/api");
-export const AUTH_API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_AUTH_API_BASE_URL, "/auth");
+export const API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_API_BASE_URL, "https://anthive.ai/api");
+export const AUTH_API_BASE_URL = resolveBaseUrl(import.meta.env.VITE_AUTH_API_BASE_URL, "https://anthive.ai/auth");
