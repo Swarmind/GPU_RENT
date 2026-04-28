@@ -54,7 +54,6 @@ interface AccessInfo {
   deployment_id: string;
   gateway_host: string;
   gateway_id: string;
-  machine_assigned_ip: string;
   ports: PortInfo[];
   rent_id: string;
   ssh: SSHInfo;
@@ -170,6 +169,24 @@ export function Deployments() {
   const [isSshKeysModalOpen, setIsSshKeysModalOpen] = useState(false);
   const [sshKeys, setSshKeys] = useState<string>("");
   const [isUploadingSshKeys, setIsUploadingSshKeys] = useState(false);
+  
+  const fetchAccessInfoForDeployment = async (deploymentId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/deployments/${deploymentId}/access`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) return;
+
+      const data: AccessInfo = await response.json();
+      setAccessInfo(prev => ({
+        ...prev,
+        [deploymentId]: data
+      }));
+    } catch (error) {
+      console.error(`Error fetching access info for deployment ${deploymentId}:`, error);
+    }
+  };
 
   // Fetch deployments from API or use mock data
   useEffect(() => {
@@ -273,21 +290,7 @@ export function Deployments() {
       if (!user || deployments.length === 0) return;
 
       for (const deployment of deployments) {
-        try {
-          const response = await fetch(`${API_BASE_URL}/deployments/${deployment.id}/access`, {
-            credentials: 'include',
-          });
-
-          if (response.ok) {
-            const data: AccessInfo = await response.json();
-            setAccessInfo(prev => ({
-              ...prev,
-              [deployment.id]: data
-            }));
-          }
-        } catch (error) {
-          console.error(`Error fetching access info for deployment ${deployment.id}:`, error);
-        }
+        await fetchAccessInfoForDeployment(deployment.id);
       }
     };
 
@@ -409,6 +412,7 @@ export function Deployments() {
       }
 
       toast.success('SSH keys uploaded successfully');
+      await fetchAccessInfoForDeployment(selectedDeployment.id);
       setIsSshKeysModalOpen(false);
       setSshKeys("");
       setSelectedDeployment(null);
@@ -557,6 +561,17 @@ export function Deployments() {
             {deployments.filter(d => d.status !== "stopped").map((deployment) => (
               <Card key={deployment.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
+                  {(() => {
+                    const deploymentAccess = accessInfo[deployment.id];
+                    const sshPortMapping = deploymentAccess?.ports?.find((port) => port.ssh);
+                    const sshPort = sshPortMapping
+                      ? (sshPortMapping.listen_port || sshPortMapping.host_port)
+                      : null;
+                    const sshCommand = (deploymentAccess?.gateway_host && sshPort)
+                      ? `ssh ${deployment.sshUser}@${deploymentAccess.gateway_host} -p ${sshPort}`
+                      : null;
+
+                    return (
                   <div className="grid grid-cols-12 gap-6">
                     {/* Left: Instance Info */}
                     <div className="col-span-12 lg:col-span-4">
@@ -584,29 +599,33 @@ export function Deployments() {
 
                     {/* Middle: Connection & Metrics */}
                     <div className="col-span-12 lg:col-span-5">
-                      {accessInfo[deployment.id] ? (
+                      {deploymentAccess ? (
                         <>
                           {/* SSH Connection */}
-                          {accessInfo[deployment.id].ssh?.enabled && (
-                            <div className="mb-4">
-                              <h4 className="text-xs font-medium text-slate-500 mb-2">SSH CONNECTION</h4>
+                          <div className="mb-4">
+                            <h4 className="text-xs font-medium text-slate-500 mb-2">SSH CONNECTION</h4>
+                            {sshCommand ? (
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
                                   <code className="text-xs bg-slate-100 px-2 py-1 rounded flex-1 truncate">
-                                    ssh root@{accessInfo[deployment.id].ssh.dial_ip} -p {accessInfo[deployment.id].ssh.dial_port}
+                                    {sshCommand}
                                   </code>
                                   <Button
                                     size="sm"
                                     variant="ghost"
                                     className="h-6 w-6 p-0"
-                                    onClick={() => copyToClipboard(`ssh root@${accessInfo[deployment.id].ssh.dial_ip} -p ${accessInfo[deployment.id].ssh.dial_port}`, "SSH command")}
+                                    onClick={() => copyToClipboard(sshCommand, "SSH command")}
                                   >
                                     <Copy className="w-3 h-3" />
                                   </Button>
                                 </div>
                               </div>
-                            </div>
-                          )}
+                            ) : (
+                              <p className="text-xs text-slate-500">
+                                SSH keys need to be added first to create SSH access.
+                              </p>
+                            )}
+                          </div>
 
                           {/* Gateway Info */}
                           <div className="mb-4">
@@ -614,21 +633,17 @@ export function Deployments() {
                             <div className="space-y-1 text-xs">
                               <div className="flex justify-between">
                                 <span className="text-slate-600">Host:</span>
-                                <code className="font-medium text-slate-900 bg-slate-100 px-1 rounded">{accessInfo[deployment.id].gateway_host}</code>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-slate-600">Machine IP:</span>
-                                <code className="font-medium text-slate-900 bg-slate-100 px-1 rounded">{accessInfo[deployment.id].machine_assigned_ip}</code>
+                                <code className="font-medium text-slate-900 bg-slate-100 px-1 rounded">{deploymentAccess.gateway_host}</code>
                               </div>
                             </div>
                           </div>
 
                           {/* Ports */}
-                          {accessInfo[deployment.id].ports && accessInfo[deployment.id].ports.length > 0 && (
+                          {deploymentAccess.ports && deploymentAccess.ports.length > 0 && (
                             <div className="mb-4">
                               <h4 className="text-xs font-medium text-slate-500 mb-2">PORTS</h4>
                               <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
-                                {accessInfo[deployment.id].ports.map((port, idx) => (
+                                {deploymentAccess.ports.map((port, idx) => (
                                   <div key={idx} className="flex justify-between items-center py-1 px-2 bg-slate-50 rounded">
                                     <span className="text-slate-600">
                                       {port.container_port} → {port.listen_port}
@@ -735,6 +750,8 @@ export function Deployments() {
                       </div>
                     </div>
                   </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             ))}

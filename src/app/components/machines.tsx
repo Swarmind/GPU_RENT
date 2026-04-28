@@ -6,6 +6,43 @@ import { API_BASE_URL } from "../config/api";
 
 // Mock data removed - using real API calls only
 
+function isRecentTimestamp(value?: string, withinMinutes = 5): boolean {
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return false;
+  return Date.now() - timestamp <= withinMinutes * 60 * 1000;
+}
+
+function formatDateTime(value?: string): string {
+  if (!value) return "Never";
+  const timestamp = Date.parse(value);
+  if (Number.isNaN(timestamp)) return value;
+  return new Date(timestamp).toLocaleString();
+}
+
+function formatConnectionStatus(status?: string, lastSeen?: string): string {
+  const normalized = (status || "").trim().toLowerCase();
+  if (normalized) {
+    return normalized
+      .split(/[_\s-]+/)
+      .filter(Boolean)
+      .map((part) => part[0].toUpperCase() + part.slice(1))
+      .join(" ");
+  }
+  return isRecentTimestamp(lastSeen) ? "Online" : "Offline";
+}
+
+function connectionStatusClass(status?: string, lastSeen?: string): string {
+  const normalized = (status || "").trim().toLowerCase();
+  if (["online", "connected", "healthy", "ok", "running"].includes(normalized)) {
+    return "bg-green-50 text-green-700";
+  }
+  if (["offline", "disconnected", "error", "failed"].includes(normalized)) {
+    return "bg-red-50 text-red-700";
+  }
+  return isRecentTimestamp(lastSeen) ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600";
+}
+
 // Helper function to map API response to UI format
 function mapApiMachineToUI(apiMachine: any) {
   // Extract GPU information from hardware
@@ -68,6 +105,9 @@ function mapApiMachineToUI(apiMachine: any) {
     ? (apiMachine.price_per_second * 3600) / 1_000_000 
     : 0;
 
+  const connectorStatus = apiMachine.connector_status || "";
+  const connectorLastSeen = apiMachine.last_seen || apiMachine.last_seen_at || "";
+
   return {
     id: apiMachine.id || String(Math.random()),
     machineName: apiMachine.name || "Unnamed Machine",
@@ -94,6 +134,12 @@ function mapApiMachineToUI(apiMachine: any) {
     // Additional API fields
     assignedIp: apiMachine.assigned_ip,
     updatedAt: apiMachine.updated_at,
+    connectorVersion: apiMachine.connector_version || "",
+    connectorStatus: connectorStatus,
+    connectorTargetVersion: apiMachine.connector_target_version || "",
+    connectorLastError: apiMachine.connector_last_error || "",
+    connectorStatusUpdatedAt: apiMachine.connector_status_updated_at || "",
+    lastSeen: connectorLastSeen,
   };
 }
 
@@ -377,7 +423,12 @@ export function Machines() {
               <div className="text-2xl font-semibold text-blue-600">{rentedMachines}</div>
             </div>
             <div className="bg-white rounded-lg border border-slate-200 p-4">
-              <div className="text-sm text-slate-600 mb-1">Total Revenue</div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="text-sm text-slate-600">Total Revenue</div>
+                <span className="px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-800">
+                  WIP
+                </span>
+              </div>
               <div className="text-2xl font-semibold text-slate-900">${totalRevenue.toFixed(2)}</div>
             </div>
           </div>
@@ -554,6 +605,38 @@ export function Machines() {
                   </div>
 
                   {/* Pricing and Stats */}
+                  <div className="pt-4 border-t border-slate-200 mb-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <div className="text-xs text-slate-500">Connection</div>
+                      <span className={`px-2 py-1 rounded text-xs ${connectionStatusClass(machine.connectorStatus, machine.lastSeen)}`}>
+                        {formatConnectionStatus(machine.connectorStatus, machine.lastSeen)}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                      <div className="text-slate-600">
+                        Last seen: <span className="text-slate-900">{formatDateTime(machine.lastSeen)}</span>
+                      </div>
+                      <div className="text-slate-600">
+                        Connector version: <span className="text-slate-900">{machine.connectorVersion || "Unknown"}</span>
+                      </div>
+                      {machine.connectorTargetVersion && (
+                        <div className="text-slate-600">
+                          Target version: <span className="text-slate-900">{machine.connectorTargetVersion}</span>
+                        </div>
+                      )}
+                      {machine.connectorStatusUpdatedAt && (
+                        <div className="text-slate-600">
+                          Status updated: <span className="text-slate-900">{formatDateTime(machine.connectorStatusUpdatedAt)}</span>
+                        </div>
+                      )}
+                      {machine.connectorLastError && (
+                        <div className="text-red-700 md:col-span-2">
+                          Last connector error: {machine.connectorLastError}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                     <div className="flex items-center gap-6">
                       <div>
@@ -593,6 +676,7 @@ export function Machines() {
       <EnrollmentTokenModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
+        onApplied={fetchUserMachines}
       />
     </div>
   );

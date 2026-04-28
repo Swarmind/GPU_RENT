@@ -6,9 +6,10 @@ import { API_BASE_URL } from "../config/api";
 interface EnrollmentTokenModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onApplied?: () => void;
 }
 
-export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalProps) {
+export function EnrollmentTokenModal({ isOpen, onClose, onApplied }: EnrollmentTokenModalProps) {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,14 +213,20 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
   };
 
   const copyToClipboard = () => {
-    if (enrollmentToken) {
-      navigator.clipboard.writeText(enrollmentToken);
+    if (enrollmentCommand) {
+      navigator.clipboard.writeText(enrollmentCommand);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   };
 
+  const enrollmentCommand = enrollmentToken
+    ? `curl -fsSL https://get.anthive.ai | sh -s -- ${enrollmentToken}`
+    : "";
+
   const handleClose = () => {
+    const hasEnrollmentToken = !!enrollmentToken;
+
     setFormData({
       machineName: "",
       location: "",
@@ -230,6 +237,11 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
     setError(null);
     setCopied(false);
     onClose();
+
+    // Refresh parent data only after enrollment flow reached command generation.
+    if (hasEnrollmentToken) {
+      onApplied?.();
+    }
   };
 
   if (!isOpen) return null;
@@ -376,12 +388,12 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
               </div>
             </form>
           ) : (
-            /* Token Display */
+            /* Enrollment Command Display */
             <div>
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-slate-700">
-                    Your Enrollment Token
+                    Enrollment Command
                   </label>
                   <button
                     onClick={copyToClipboard}
@@ -403,7 +415,7 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
                 <div className="relative">
                   <input
                     type="text"
-                    value={enrollmentToken}
+                    value={enrollmentCommand}
                     readOnly
                     className="w-full px-3 py-3 bg-slate-50 border border-slate-300 rounded-lg font-mono text-sm text-slate-900 select-all"
                   />
@@ -415,12 +427,7 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
                 <div className="flex gap-2">
                   <Terminal className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-green-900 font-medium mb-2">Success! Use this token with the CLI:</p>
-                    <div className="bg-slate-900 rounded px-3 py-2 mt-2 overflow-x-auto">
-                      <code className="text-sm text-green-400 break-all">
-                        make run-connect TOKEN={enrollmentToken}
-                      </code>
-                    </div>
+                    <p className="text-sm text-green-900 font-medium mb-2">Success! Run the enrollment command above on your machine.</p>
                     <p className="text-xs text-green-700 mt-2">
                       Run this command on the machine you want to register. The CLI will collect hardware characteristics and complete the enrollment.
                     </p>
