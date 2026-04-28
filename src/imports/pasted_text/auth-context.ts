@@ -126,14 +126,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // Real API: Check /me endpoint
         console.log('Checking authentication at:', `${API_BASE_URL}/me`);
-
+        
         const response = await fetch(`${API_BASE_URL}/me`, {
           credentials: 'include',
         });
-
+        
         console.log('/me response status:', response.status);
         console.log('/me response ok:', response.ok);
-
+        
         if (response.ok) {
           const data = await response.json();
           console.log('User data from /me:', data);
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           saveSession(normalizedUser);
         } else {
           console.log('/me returned non-OK status:', response.status);
-
+          
           // Try to get user from localStorage as fallback
           const cachedSession = getCurrentSession();
           if (cachedSession) {
@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.log('checkAuth error:', error);
-
+      
       // Try to get user from localStorage as fallback
       const cachedSession = getCurrentSession();
       if (cachedSession) {
@@ -184,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, 500));
 
         const users = getMockUsers();
-
+        
         if (users.find((u: any) => u.email === email || u.username === username)) {
           throw new Error('User already exists');
         }
@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         users.push(newUser);
         saveMockUsers(users);
 
-        const userData = normalizeUser(null, { username, email });
+        const userData = normalizeUser(responseData, { username, email });
         setUser(userData);
         saveSession(userData);
       } else {
@@ -209,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password_confirm: '***',
           username,
         });
-
+        
         const response = await fetch(`${API_BASE_URL}/register`, {
           method: 'POST',
           headers: {
@@ -237,7 +237,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let responseData = null;
         const responseText = await response.text();
         console.log('Response text:', responseText);
-
+        
         if (responseText) {
           try {
             responseData = JSON.parse(responseText);
@@ -249,11 +249,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('Response body is empty (this is OK)');
         }
 
-        const userData = normalizeUser(responseData, { username, email });
+        const userData = { username, email };
         setUser(userData);
-        saveSession(userData);
       }
-
+      
     } catch (error) {
       console.error('Registration error:', error);
       throw error;
@@ -270,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await new Promise(resolve => setTimeout(resolve, 500));
 
         const users = getMockUsers();
-        const user = users.find((u: any) =>
+        const user = users.find((u: any) => 
           u.username === usernameOrEmail || u.email === usernameOrEmail
         );
 
@@ -284,14 +283,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         // Real API login
         const isEmail = usernameOrEmail.includes('@');
-
+        
         console.log('Making login request to:', `${API_BASE_URL}/login`);
         console.log('Request payload:', {
           email: isEmail ? usernameOrEmail : undefined,
           username: !isEmail ? usernameOrEmail : undefined,
           password: '***',
         });
-
+        
         try {
           const response = await fetch(`${API_BASE_URL}/login`, {
             method: 'POST',
@@ -327,12 +326,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           let responseData = null;
           const responseText = await response.text();
           console.log('Response text:', responseText);
-
+          
           if (responseText) {
             try {
               responseData = JSON.parse(responseText);
               console.log('Login response (parsed):', responseData);
-
+              
               // If the response contains user data, use it directly
               if (responseData && (responseData.username || responseData.email)) {
                 const userData = normalizeUser(responseData, {
@@ -355,11 +354,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Note: The backend may have cookie issues with SameSite attribute
           // We'll try to fetch user data, and if that fails, we'll use the login credentials
           console.log('Attempting to fetch user data after login...');
-
+          
           try {
             // Fetch user data after successful login
             await checkAuth();
-
+            
             // If checkAuth didn't set a user (due to cookie issues), create one from credentials
             const refreshedSession = getCurrentSession();
             if (!refreshedSession) {
@@ -383,16 +382,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         } catch (fetchError: any) {
           console.error('Network/Fetch error:', fetchError);
-
+          
           // Check if it's a CORS or network error
           if (fetchError.message?.includes('NetworkError') || fetchError.message?.includes('Failed to fetch')) {
             throw new Error(`Cannot connect to auth API (${API_BASE_URL}). Check proxy/CORS for origin ${window.location.origin}`);
           }
-
+          
           throw fetchError;
         }
       }
-
+      
     } catch (error) {
       console.error('Login error:', error);
       throw error;

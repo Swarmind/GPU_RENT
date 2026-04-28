@@ -197,7 +197,7 @@ export function EnrollmentTokenModal({ isOpen, onClose }: EnrollmentTokenModalPr
       
       // User-friendly error message
       let displayError = err.message || 'Failed to generate enrollment token';
-      
+
       // Check for common error types
       if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
         displayError = `Network error: Cannot connect to API (${API_BASE_URL}). Check proxy/CORS configuration.`;

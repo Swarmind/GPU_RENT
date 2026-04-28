@@ -440,7 +440,7 @@ export function CreateTemplateModal({ isOpen, onClose, onTemplateCreated, templa
       console.error('============================');
       
       let displayError = err.message || `Failed to ${templateId ? 'update' : 'create'} template`;
-      
+
       if (err.message?.includes('NetworkError') || err.message?.includes('Failed to fetch')) {
         displayError = `Network error: Cannot connect to API (${API_BASE_URL}). Check proxy/CORS configuration.`;
       } else if (err.message?.includes('JSON')) {

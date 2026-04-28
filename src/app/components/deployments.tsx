@@ -162,6 +162,7 @@ export function Deployments() {
   const { user } = useAuth();
   const [deployments, setDeployments] = useState<Deployment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDeployment, setSelectedDeployment] = useState<Deployment | null>(null);
   const [actionType, setActionType] = useState<"pause" | "resume" | "stop" | null>(null);
   const [isActionDialogOpen, setIsActionDialogOpen] = useState(false);
@@ -180,6 +181,7 @@ export function Deployments() {
       }
 
       setIsLoading(true);
+      setError(null);
       try {
         const headers: HeadersInit = {
           'Content-Type': 'application/json',
@@ -198,8 +200,9 @@ export function Deployments() {
         });
 
         if (!response.ok) {
-          console.error('Failed to fetch deployments:', response.status);
-          // Show empty deployments on error
+          const errorText = await response.text();
+          console.error('Failed to fetch deployments:', response.status, errorText);
+          setError(`Failed to load deployments: ${response.status} ${response.statusText}`);
           setDeployments([]);
           return;
         }
@@ -220,7 +223,8 @@ export function Deployments() {
         // Map rents to Deployment interface
         const mappedDeployments: Deployment[] = rentsArray.map((rent: any) => {
           // Map API status to DeploymentStatus
-          let apiStatus = (rent.Status?.toLowerCase() || rent.status || 'stopped');
+          // Status can be: "active", "paused", "stopped"
+          let apiStatus = rent.Status || rent.status || 'stopped';
           if (apiStatus === 'active') {
             apiStatus = 'running';
           }
@@ -251,9 +255,9 @@ export function Deployments() {
         });
 
         setDeployments(mappedDeployments);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching deployments:', error);
-        // Show empty deployments on error
+        setError(error.message || 'An error occurred while fetching deployments');
         setDeployments([]);
       } finally {
         setIsLoading(false);
@@ -521,6 +525,14 @@ export function Deployments() {
           </Card>
         </div>
 
+        {/* Error Display */}
+        {error && (
+          <Alert className="mb-4" variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Deployments List */}
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -532,7 +544,7 @@ export function Deployments() {
               <Terminal className="w-12 h-12 mx-auto mb-4 text-slate-400" />
               <h3 className="text-lg font-medium text-slate-900 mb-2">No deployments yet</h3>
               <p className="text-slate-600 mb-6">Get started by renting a GPU instance from the marketplace</p>
-              <Button 
+              <Button
                 onClick={() => window.location.href = '/marketplace'}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
               >
@@ -542,7 +554,7 @@ export function Deployments() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {deployments.map((deployment) => (
+            {deployments.filter(d => d.status !== "stopped").map((deployment) => (
               <Card key={deployment.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   <div className="grid grid-cols-12 gap-6">
