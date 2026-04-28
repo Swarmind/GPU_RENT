@@ -13,34 +13,33 @@ function isRecentTimestamp(value?: string, withinMinutes = 5): boolean {
   return Date.now() - timestamp <= withinMinutes * 60 * 1000;
 }
 
+function isConnected(status?: string, lastSeen?: string): boolean {
+  const normalized = (status || "").trim().toLowerCase();
+  if (["online", "connected", "healthy", "ok", "running"].includes(normalized)) {
+    return true;
+  }
+  if (["offline", "disconnected", "error", "failed"].includes(normalized)) {
+    return false;
+  }
+  return isRecentTimestamp(lastSeen);
+}
+
 function formatDateTime(value?: string): string {
   if (!value) return "Never";
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) return value;
-  return new Date(timestamp).toLocaleString();
-}
+  const date = new Date(timestamp);
+  const now = new Date();
 
-function formatConnectionStatus(status?: string, lastSeen?: string): string {
-  const normalized = (status || "").trim().toLowerCase();
-  if (normalized) {
-    return normalized
-      .split(/[_\s-]+/)
-      .filter(Boolean)
-      .map((part) => part[0].toUpperCase() + part.slice(1))
-      .join(" ");
-  }
-  return isRecentTimestamp(lastSeen) ? "Online" : "Offline";
-}
+  const isToday = date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
 
-function connectionStatusClass(status?: string, lastSeen?: string): string {
-  const normalized = (status || "").trim().toLowerCase();
-  if (["online", "connected", "healthy", "ok", "running"].includes(normalized)) {
-    return "bg-green-50 text-green-700";
+  if (isToday) {
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
-  if (["offline", "disconnected", "error", "failed"].includes(normalized)) {
-    return "bg-red-50 text-red-700";
-  }
-  return isRecentTimestamp(lastSeen) ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-600";
+
+  return date.toLocaleString();
 }
 
 // Helper function to map API response to UI format
@@ -509,23 +508,20 @@ export function Machines() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-lg font-medium text-slate-900">{machine.machineName}</h3>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            machine.status === "active" 
-                              ? "bg-green-50 text-green-700"
-                              : machine.status === "rented"
-                              ? "bg-blue-50 text-blue-700"
-                              : "bg-slate-100 text-slate-600"
-                          }`}>
-                            {machine.status}
-                          </span>
+                          {isConnected(machine.connectorStatus, machine.lastSeen) && (
+                            <span className="px-2 py-1 rounded text-xs bg-green-50 text-green-700">
+                              Connected
+                            </span>
+                          )}
                           {machine.verified && (
                             <span className="px-2 py-1 rounded text-xs bg-purple-50 text-purple-700">
-                              verified
+                              Verified
                             </span>
                           )}
                         </div>
                         <div className="text-sm text-slate-500">
                           {machine.machineId} • {machine.location}
+                          {machine.connectorVersion ? ` • v${machine.connectorVersion}` : ""}
                         </div>
                       </div>
                     </div>
@@ -604,39 +600,6 @@ export function Machines() {
                     </div>
                   </div>
 
-                  {/* Pricing and Stats */}
-                  <div className="pt-4 border-t border-slate-200 mb-4">
-                    <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <div className="text-xs text-slate-500">Connection</div>
-                      <span className={`px-2 py-1 rounded text-xs ${connectionStatusClass(machine.connectorStatus, machine.lastSeen)}`}>
-                        {formatConnectionStatus(machine.connectorStatus, machine.lastSeen)}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-                      <div className="text-slate-600">
-                        Last seen: <span className="text-slate-900">{formatDateTime(machine.lastSeen)}</span>
-                      </div>
-                      <div className="text-slate-600">
-                        Connector version: <span className="text-slate-900">{machine.connectorVersion || "Unknown"}</span>
-                      </div>
-                      {machine.connectorTargetVersion && (
-                        <div className="text-slate-600">
-                          Target version: <span className="text-slate-900">{machine.connectorTargetVersion}</span>
-                        </div>
-                      )}
-                      {machine.connectorStatusUpdatedAt && (
-                        <div className="text-slate-600">
-                          Status updated: <span className="text-slate-900">{formatDateTime(machine.connectorStatusUpdatedAt)}</span>
-                        </div>
-                      )}
-                      {machine.connectorLastError && (
-                        <div className="text-red-700 md:col-span-2">
-                          Last connector error: {machine.connectorLastError}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
                   <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                     <div className="flex items-center gap-6">
                       <div>
@@ -650,17 +613,36 @@ export function Machines() {
                         <div className="text-sm font-medium text-slate-900">{machine.maxDuration}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-slate-500 mb-1">Reliability</div>
+                        <div className="text-xs text-slate-500 mb-1">Last Seen</div>
+                        <div className="text-sm font-medium text-slate-900">{formatDateTime(machine.lastSeen)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                          Reliability
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-800">
+                            WIP
+                          </span>
+                        </div>
                         <div className="text-sm font-medium text-slate-900">{machine.reliability}%</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <div className="text-xs text-slate-500 mb-1">Total Rentals</div>
+                        <div className="text-xs text-slate-500 mb-1 flex items-center justify-end gap-1">
+                          Total Rentals
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-800">
+                            WIP
+                          </span>
+                        </div>
                         <div className="text-sm font-medium text-slate-900">{machine.rentals}</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs text-slate-500 mb-1">Revenue</div>
+                        <div className="text-xs text-slate-500 mb-1 flex items-center justify-end gap-1">
+                          Revenue
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-100 text-amber-800">
+                            WIP
+                          </span>
+                        </div>
                         <div className="text-lg font-medium text-green-600">${machine.revenue.toFixed(2)}</div>
                       </div>
                     </div>
