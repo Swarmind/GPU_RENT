@@ -6,6 +6,7 @@ import { useAuth } from "../contexts/auth-context";
 import { useTemplate } from "../contexts/template-context";
 import { useNavigate } from "react-router";
 import { API_BASE_URL } from "../config/api";
+import { Alert, AlertDescription } from "./ui/alert";
 
 interface Template {
   id: number;
@@ -264,10 +265,9 @@ export function Templates() {
 
   useEffect(() => {
     const fetchTemplates = async () => {
-      // If user is not logged in, use mock data
+      // Skip fetch when user is not logged in
       if (!user) {
-        console.log('=== TEMPLATES: User not authenticated, using mock data ===');
-        setTemplates(mockTemplates);
+        setTemplates([]);
         return;
       }
 
@@ -419,9 +419,7 @@ export function Templates() {
         }
         
         setError(displayError);
-        // Fallback to mock data on error
-        console.log('Falling back to mock data due to error');
-        setTemplates(mockTemplates);
+        setTemplates([]);
       } finally {
         setIsLoading(false);
       }
@@ -429,6 +427,21 @@ export function Templates() {
 
     fetchTemplates();
   }, [user, refreshKey, currentPage, searchQuery, showPrivateOnly]);
+
+  if (!user) {
+    return (
+      <section className="min-h-screen bg-slate-50 pt-20">
+        <div className="container mx-auto px-6 py-12">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please sign in to view templates.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-slate-50 py-20">

@@ -3,6 +3,7 @@ import { Plus, Server, Edit, Trash2, Power, PowerOff } from "lucide-react";
 import { EnrollmentTokenModal } from "./enrollment-token-modal";
 import { useAuth } from "../contexts/auth-context";
 import { API_BASE_URL } from "../config/api";
+import { Alert, AlertDescription } from "./ui/alert";
 
 // Mock data removed - using real API calls only
 
@@ -387,6 +388,21 @@ export function Machines() {
   const totalRevenue = machines.reduce((sum, machine) => sum + machine.revenue, 0);
   const activeMachines = machines.filter(m => m.status === "active").length;
   const rentedMachines = machines.filter(m => m.status === "rented").length;
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-50 pt-20">
+        <div className="container mx-auto px-6 py-12">
+          <Alert>
+            <Server className="h-4 w-4" />
+            <AlertDescription>
+              Please sign in to view your machines.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pt-16">

@@ -421,9 +421,9 @@ export function Instances() {
     <div className="flex min-h-screen bg-slate-50 pt-16">
       {/* Left Sidebar */}
       <aside className="w-64 bg-slate-900 text-slate-300 fixed left-0 top-16 bottom-0 overflow-y-auto">
-        <div className="p-4">
+        <div className="p-4 pt-8">
           {/* Filter Options Header */}
-          <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-700">
+          <div className="flex items-center gap-2 mb-6 pb-3 border-b border-slate-700 shadow-[0_8px_16px_-12px_rgba(15,23,42,0.9)]">
             <Filter className="w-4 h-4" />
             <h3 className="text-sm font-medium text-white">Filter Options</h3>
           </div>

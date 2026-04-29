@@ -3,7 +3,7 @@ import { Link } from "react-router";
 
 export function Hero() {
   return (
-    <section className="container mx-auto px-6 py-20">
+    <section className="container mx-auto px-6 pt-28 pb-20">
       <div className="text-center max-w-4xl mx-auto mb-16">
         <h1 className="text-5xl md:text-6xl mb-6 text-slate-900">
           Decentralized GPU Marketplace for AI & ML

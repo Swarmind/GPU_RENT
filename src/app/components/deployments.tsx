@@ -454,6 +454,7 @@ export function Deployments() {
   const getActiveDeploymentsCount = () => {
     return deployments.filter(d => d.status === "running").length;
   };
+  const visibleDeployments = deployments.filter(d => d.status !== "stopped");
 
   if (!user) {
     return (
@@ -556,9 +557,19 @@ export function Deployments() {
               </Button>
             </CardContent>
           </Card>
+        ) : visibleDeployments.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Terminal className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+              <h3 className="text-lg font-medium text-slate-900 mb-2">No active deployments</h3>
+              <p className="text-slate-600">
+                All deployments are stopped. Start one to see it here.
+              </p>
+            </CardContent>
+          </Card>
         ) : (
           <div className="space-y-4">
-            {deployments.filter(d => d.status !== "stopped").map((deployment) => (
+            {visibleDeployments.map((deployment) => (
               <Card key={deployment.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   {(() => {
