@@ -160,6 +160,9 @@ const mockDeployments: Deployment[] = [
 export function Deployments() {
   const { user } = useAuth();
   const [deployments, setDeployments] = useState<Deployment[]>([]);
+  const [totalDeploymentsCount, setTotalDeploymentsCount] = useState(0);
+  const [totalSpending, setTotalSpending] = useState(0);
+  const [averagePricePerHour, setAveragePricePerHour] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDeployment, setSelectedDeployment] = useState<Deployment | null>(null);
@@ -194,6 +197,9 @@ export function Deployments() {
       if (!user) {
         // Not authenticated - show empty state
         setDeployments([]);
+        setTotalDeploymentsCount(0);
+        setTotalSpending(0);
+        setAveragePricePerHour(0);
         return;
       }
 
@@ -271,11 +277,22 @@ export function Deployments() {
           };
         });
 
-        setDeployments(mappedDeployments);
+        const nonStoppedDeployments = mappedDeployments.filter((d) => d.status !== "stopped");
+        setDeployments(nonStoppedDeployments);
+        setTotalDeploymentsCount(mappedDeployments.length);
+        setTotalSpending(mappedDeployments.reduce((sum, d) => sum + d.totalCost, 0));
+        setAveragePricePerHour(
+          mappedDeployments.length > 0
+            ? mappedDeployments.reduce((sum, d) => sum + d.pricePerHour, 0) / mappedDeployments.length
+            : 0
+        );
       } catch (error: any) {
         console.error('Error fetching deployments:', error);
         setError(error.message || 'An error occurred while fetching deployments');
         setDeployments([]);
+        setTotalDeploymentsCount(0);
+        setTotalSpending(0);
+        setAveragePricePerHour(0);
       } finally {
         setIsLoading(false);
       }
@@ -295,7 +312,7 @@ export function Deployments() {
     };
 
     fetchAccessInfo();
-  }, [user, deployments.length]);
+  }, [user, deployments]);
 
   const handleAction = async (deployment: Deployment, action: "pause" | "resume" | "stop") => {
     if (action === "stop") {
@@ -348,9 +365,8 @@ export function Deployments() {
         }, 2000);
       } else if (action === "stop") {
         setTimeout(() => {
-          setDeployments(prev => prev.map(d =>
-            d.id === deployment.id ? { ...d, status: "stopped" as DeploymentStatus } : d
-          ));
+          setDeployments(prev => prev.filter(d => d.id !== deployment.id));
+          setTotalDeploymentsCount(prev => Math.max(0, prev - 1));
         }, 2000);
       }
     } catch (error) {
@@ -447,14 +463,9 @@ export function Deployments() {
     );
   };
 
-  const calculateTotalSpending = () => {
-    return deployments.reduce((sum, d) => sum + d.totalCost, 0);
-  };
-
   const getActiveDeploymentsCount = () => {
     return deployments.filter(d => d.status === "running").length;
   };
-  const visibleDeployments = deployments.filter(d => d.status !== "stopped");
 
   if (!user) {
     return (
@@ -487,7 +498,7 @@ export function Deployments() {
               <CardTitle className="text-sm font-medium text-slate-600">Total Deployments</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-slate-900">{deployments.length}</div>
+              <div className="text-2xl font-bold text-slate-900">{totalDeploymentsCount}</div>
             </CardContent>
           </Card>
 
@@ -510,7 +521,7 @@ export function Deployments() {
             <CardContent>
               <div className="flex items-center gap-2">
                 <DollarSign className="w-5 h-5 text-blue-500" />
-                <div className="text-2xl font-bold text-slate-900">${calculateTotalSpending().toFixed(2)}</div>
+                <div className="text-2xl font-bold text-slate-900">${totalSpending.toFixed(2)}</div>
               </div>
             </CardContent>
           </Card>
@@ -521,10 +532,7 @@ export function Deployments() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-slate-900">
-                ${deployments.length > 0 
-                  ? (deployments.reduce((sum, d) => sum + d.pricePerHour, 0) / deployments.length).toFixed(3)
-                  : '0.000'
-                }
+                ${averagePricePerHour.toFixed(3)}
               </div>
             </CardContent>
           </Card>
@@ -543,7 +551,7 @@ export function Deployments() {
           <div className="flex items-center justify-center py-12">
             <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
           </div>
-        ) : deployments.length === 0 ? (
+        ) : totalDeploymentsCount === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Terminal className="w-12 h-12 mx-auto mb-4 text-slate-400" />
@@ -557,7 +565,7 @@ export function Deployments() {
               </Button>
             </CardContent>
           </Card>
-        ) : visibleDeployments.length === 0 ? (
+        ) : deployments.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
               <Terminal className="w-12 h-12 mx-auto mb-4 text-slate-400" />
@@ -569,7 +577,7 @@ export function Deployments() {
           </Card>
         ) : (
           <div className="space-y-4">
-            {visibleDeployments.map((deployment) => (
+            {deployments.map((deployment) => (
               <Card key={deployment.id} className="hover:shadow-lg transition-shadow">
                 <CardContent className="p-6">
                   {(() => {
