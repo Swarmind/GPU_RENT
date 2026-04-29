@@ -92,6 +92,10 @@ async function extractErrorMessage(response: Response, fallback: string): Promis
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const clearAuthState = () => {
+    setUser(null);
+    saveSession(null);
+  };
 
   useEffect(() => {
     // Clean up any cached wallet_address from localStorage
@@ -112,6 +116,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Check if user is already logged in
     checkAuth();
+  }, []);
+
+  useEffect(() => {
+    if (USE_MOCK_AUTH) return;
+
+    const onUnauthorized = () => {
+      clearAuthState();
+    };
+
+    window.addEventListener('auth:unauthorized', onUnauthorized);
+
+    const intervalId = window.setInterval(() => {
+      checkAuth();
+    }, 60_000);
+
+    const onFocus = () => {
+      checkAuth();
+    };
+
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', onUnauthorized);
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (USE_MOCK_AUTH) return;
+
+    const win = window as any;
+    if (win.__authFetchPatched) return;
+
+    const originalFetch = window.fetch.bind(window);
+    let lastUnauthorizedAt = 0;
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await originalFetch(input, init);
+
+      const requestCredentials = init?.credentials ?? (input instanceof Request ? input.credentials : undefined);
+      const hasCredentials = requestCredentials === 'include';
+
+      if (response.status === 401 && hasCredentials) {
+        const now = Date.now();
+        if (now - lastUnauthorizedAt > 3000) {
+          lastUnauthorizedAt = now;
+          window.dispatchEvent(new Event('auth:unauthorized'));
+        }
+      }
+
+      return response;
+    };
+
+    win.__authFetchPatched = true;
   }, []);
 
   const checkAuth = async () => {
@@ -148,24 +209,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           saveSession(normalizedUser);
         } else {
           console.log('/me returned non-OK status:', response.status);
-
-          // Try to get user from localStorage as fallback
-          const cachedSession = getCurrentSession();
-          if (cachedSession) {
-            console.log('Using cached session from localStorage:', cachedSession);
-            setUser(cachedSession);
-          }
+          clearAuthState();
         }
       }
     } catch (error) {
       console.log('checkAuth error:', error);
-
-      // Try to get user from localStorage as fallback
-      const cachedSession = getCurrentSession();
-      if (cachedSession) {
-        console.log('Using cached session from localStorage after error:', cachedSession);
-        setUser(cachedSession);
-      }
+      clearAuthState();
     } finally {
       setIsLoading(false);
     }
@@ -353,34 +402,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           // Note: The backend may have cookie issues with SameSite attribute
-          // We'll try to fetch user data, and if that fails, we'll use the login credentials
+          // We require a verified session from /me to avoid stale logged-in UI state
           console.log('Attempting to fetch user data after login...');
 
-          try {
-            // Fetch user data after successful login
-            await checkAuth();
-
-            // If checkAuth didn't set a user (due to cookie issues), create one from credentials
-            const refreshedSession = getCurrentSession();
-            if (!refreshedSession) {
-              console.log('checkAuth did not set user, using login credentials as fallback');
-              const fallbackUserData = normalizeUser(null, {
-                username: isEmail ? usernameOrEmail.split('@')[0] : usernameOrEmail,
-                email: isEmail ? usernameOrEmail : '',
-              });
-              setUser(fallbackUserData);
-              saveSession(fallbackUserData);
-            }
-          } catch (checkAuthError) {
-            console.log('checkAuth failed, using login credentials as fallback:', checkAuthError);
-            // If /me fails completely, create user data from what we have
-            const fallbackUserData = normalizeUser(null, {
-              username: isEmail ? usernameOrEmail.split('@')[0] : usernameOrEmail,
-              email: isEmail ? usernameOrEmail : '',
-            });
-            setUser(fallbackUserData);
-            saveSession(fallbackUserData);
-          }
+          await checkAuth();
         } catch (fetchError: any) {
           console.error('Network/Fetch error:', fetchError);
 
